@@ -20,13 +20,18 @@ type Groups = Map.Map Pos Group
 
 data Board = Board {bdSize :: Size, bdPegs:: Pegs, bdToPlay :: Color, bdGroups :: Groups} 
 
+showSquare :: Board -> Pos -> String
+showSquare board pos = let value = Map.lookup pos (bdGroups board)
+                       in case value of 
+                       Nothing -> " . "
+                       Just group -> " " ++ show (grpColor group) ++ " "
+
 instance Show Board where 
-    show board = foldl (++) "" [show $ pegPos peg | peg <- bdPegs board]
-        {-
-    show board = unlines $ map concat $ slice sizex line 
-        where line  = [showSquare square | square <- elems $ bdSquares board]
-              sizex = fst $ bdSize board
-        -}
+    show board = let (sizex, sizey) = bdSize board
+                     line = [ showSquare board (row, col) | row <- [1, 2..sizex], col <- [1, 2..sizey] ]
+                 in unlines $ (map concat $ slice sizex line) ++ [show (bdPegs board)] ++ [show (bdGroups board)]
+
+    --show board = foldl (++) "" [show $ pegPos peg | peg <- bdPegs board]
 
 oppColor :: Color -> Color
 oppColor White = Black
@@ -105,14 +110,17 @@ placePeg board peg = let newPegs = peg:(bdPegs board)
                          -- find neighboring pegs
                          neighbors = getConnectedPegs peg (bdPegs board)
                          -- resolve neighboring pegs to groups TODO lookup might return Maybe
+                         
                          neighborGroups = exportMaybes $ 
                                           map (\peg -> Map.lookup (pegPos peg) (bdGroups board)) neighbors
+                         
                          -- connect all the neighboring groups
                          newGroup = mergeGroups neighborGroups (mkGroup peg)
                          -- update groups 
                          newGroups = foldl (\groups pos -> Map.update (\group->Just newGroup) pos groups) 
-                                           (bdGroups board) 
-                                           $ map (\peg -> pegPos peg) neighbors
+                                         (Map.insert (pegPos peg) newGroup (bdGroups board)) $
+                                         map (\peg -> pegPos peg) $ neighbors ++ [peg]
+                         --newGroups = Map.fromList [((pegPos peg), newGroup)]
                      -- create the board
                      in Board {bdSize = bdSize board,
                                bdPegs = newPegs,
@@ -130,7 +138,7 @@ getWinner board = Nothing
 
 --testing 
 
-empty1 = mkBoard 3 4
+empty1 = placePeg (mkBoard 3 4) Peg{pegPos=(1, 1), pegColor=White}
 
 nlPrint :: String -> IO ()
 nlPrint s = putStrLn s
