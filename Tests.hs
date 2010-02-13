@@ -8,36 +8,46 @@ import Board
 
 sequenceAssertions assertions = sequence assertions >> return ()
 
-refSizex = 4
-refSizey = 4
+refSizex = 6
+refSizey = 6
 refSize = (refSizey, refSizex)
 refBoard = mkBoard refSizex refSizey
-refPos1 = (2, 2)
-
---bridge spoiling
--- ==============================
+refPos1 = (1, 1)
 
 --peg connecting
 -- ==============================
+{-
+ - . . . . . . .
+ - . . W . W . .
+ - . W B . . W .
+ - . . . ? B . .
+ - . W . W . W .
+ - . . B . . . .
+ - . . . . . . .
+ -}
 
---peg validity
+connectedPegs = mkPegs [(1, 2, White), (1, 4, White), 
+                        (2, 1, White), (2, 5, White),
+                        (4, 1, White), (4, 5, White)]
 
---peg placing
+separatePegs = mkPegs [(2, 2, Black), (3, 4, Black), 
+                       (4, 3, White), (5, 2, Black)]
+
+testPegConnect = TestCase $ assertEqual "testPegConnect" connectedPegs $
+                 getConnectedPegs (mkPeg 3 3 White) (connectedPegs ++ separatePegs)
+
+--peg validity 
 -- ==============================
 
 --peg cannot be placed
-invalidPegs = [
+invalidPegs = mkPegs [
               --corners
-              Peg{pegPos=(0, 0), pegColor=White},
-              Peg{pegPos=(refSizex - 1, refSizey - 1), pegColor=White},
-              Peg{pegPos=(refSizex - 1, 0), pegColor=White},
-              Peg{pegPos=(0, refSizey - 1), pegColor=White},
+              (0, 0, White), (refSizex - 1, refSizey - 1, White), 
+              (refSizex - 1, 0, White), (0, refSizey - 1, White),
               --only white
-              Peg{pegPos=(0, 1), pegColor=Black},
-              Peg{pegPos=(refSizex - 1, 1), pegColor=Black},
+              (0, 1, Black), (refSizex - 1, 1, Black),
               --out ot the board
-              Peg{pegPos=(-1, 0), pegColor=White},
-              Peg{pegPos=(refSizex, 0), pegColor=White}
+              (-1, 0, White), (refSizex, 0, White)
               ]
 
 testInvalidPegs = let newTestBoards = map (placePegFallback refBoard) invalidPegs
@@ -58,9 +68,16 @@ testInvalidPegSeqs = let testBoards = map (\(seq, peg) -> placePegSeq refBoard s
                         sequenceAssertions $
                         map (\(b1, b2) -> assertEqual "testInvalidPegSeqs fail" b1 b2) (zip testBoards newTestBoards)
 
---winning check
+--bridge spoiling
+-- ==============================
 
-boardTest = TestList [testInvalidPegs, testInvalidPegSeqs]
+--peg placing 
+-- ==============================
+
+--winning check
+-- ==============================
+
+boardTest = TestList [testPegConnect, testInvalidPegs, testInvalidPegSeqs]
 runTests = runTestTT boardTest
 run = runTests
 

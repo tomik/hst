@@ -18,8 +18,11 @@ type Size = (Int, Int)
 --pos is (row, col) where row|col is in [0, maxrow|maxcol -1]
 type Pos = (Int, Int)
 
-data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Show, Eq)
+data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Eq)
 type Pegs = [Peg]
+
+instance Show Peg where 
+    show peg = "[" ++ show (pegPos peg) ++ show (pegColor peg) ++ "]"
 
 data Group = Group {grpColor:: Color, grpPegs :: [Peg]} deriving (Show, Eq)
 type Groups = Map.Map Pos Group
@@ -70,6 +73,13 @@ mkGroup peg = Group{
                     grpColor=pegColor peg,
                     grpPegs=[peg]
                     }
+
+mkPeg :: Int -> Int -> Color -> Peg
+mkPeg posy posx color = Peg{pegPos=(posy, posx), pegColor=color}
+
+mkPegs :: [(Int, Int, Color)] -> Pegs
+mkPegs [] = []
+mkPegs ((posy, posx, color):rest) = (mkPeg posy posx color):(mkPegs rest)
 
 isGoalEdge:: Size -> Pos -> Color -> Bool
 isGoalEdge _ (0, _) White = True
@@ -185,7 +195,6 @@ placePegMaybe board peg | otherwise = Just $ placePeg board peg
 placePegSeq :: Board -> Pegs -> Board
 placePegSeq initBoard [] = initBoard
 placePegSeq initBoard seq = foldl placePeg initBoard seq
-
 
 --TODO
 
