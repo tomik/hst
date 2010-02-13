@@ -1,28 +1,34 @@
+module Board where
+
 import qualified Data.Map as Map
 import Data.List 
 
 import Utils (slice)
 
+--white connects top to bottom
+--black connects left to right
 data Color = Black | White deriving Eq
 
 instance Show Color where
     show Black = "B"
     show White = "W"
 
-type Pos = (Int, Int)
+--size is (maxrow + 1, maxcol + 1)
 type Size = (Int, Int)
+--pos is (row, col) where row|col is in [0, maxrow|maxcol -1] 
+type Pos = (Int, Int)
 
 data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Show, Eq)
 type Pegs = [Peg] 
 
-data Group = Group {grpColor:: Color, grpPegs :: [Peg]} deriving Show
+data Group = Group {grpColor:: Color, grpPegs :: [Peg]} deriving (Show, Eq)
 type Groups = Map.Map Pos Group
 
-data Board = Board {bdSize :: Size, bdPegs:: Pegs, bdToPlay :: Color, bdGroups :: Groups} 
+data Board = Board {bdSize :: Size, bdPegs:: Pegs, bdToPlay :: Color, bdGroups :: Groups} deriving (Eq)
 
 --abs + rel pos -> pos
 offsetPos :: Pos -> Pos -> Pos 
-offsetPos (posx, posy) (offx, offy) = (posx + offx, posy + offy)
+offsetPos (posy, posx) (offy, offx) = (posy + offy, posx + offx)
 
 showSquare :: Board -> Pos -> String
 showSquare board pos = let value = Map.lookup pos (bdGroups board)
@@ -31,9 +37,13 @@ showSquare board pos = let value = Map.lookup pos (bdGroups board)
                        Just group -> " " ++ show (grpColor group) ++ " "
 
 instance Show Board where 
-    show board = let (sizex, sizey) = bdSize board
-                     line = [ showSquare board (row, col) | row <- [1, 2..sizex], col <- [1, 2..sizey] ]
-                 in unlines $ (map concat $ slice sizex line) ++ [show (bdPegs board)] ++ [show (bdGroups board)]
+    show board = let (sizey, sizex) = bdSize board
+                     line = [ showSquare board (row, col) | row <- [0, 1..(sizey - 1)], col <- [0, 1..(sizex - 1)] ]
+                     header = "Board " ++ (show $ bdToPlay board) ++ " to play:"
+                 in unlines $ [header] ++
+                              (map concat $ slice sizex line) ++ 
+                              ["Pegs: " ++ show (bdPegs board)] ++ 
+                              ["Groups: " ++ show (bdGroups board)]
 
     --show board = foldl (++) "" [show $ pegPos peg | peg <- bdPegs board]
 
@@ -48,8 +58,8 @@ getCol :: Pos -> Int
 getCol (row, col) = col
 
 mkBoard :: Int -> Int -> Board
-mkBoard sizex sizey = Board {
-                        bdSize = (sizex, sizey), 
+mkBoard sizey sizex = Board {
+                        bdSize = (sizey, sizex), 
                         bdPegs = [],
                         bdToPlay = White,
                         bdGroups = Map.empty
@@ -71,11 +81,11 @@ negateFirst (a, b) = (-1 * a, b)
 relSpoilPairs = [((-2, 0), (0,  1)), ((-1, -1), (0, -1)), ((-1, 0), ( 1,  1)), (( 1, 0), (-1,  1)), 
                  (( 2, 0), (0, -1)), (( 1,  1), (0, -1)), (( 1, 0), (-1, -1)), ((-1, 0), ( 1, -1))]
 
---for a potential bridge (pair of positions) gives positions which can spoil it
+--for a potential bridge (pair of positions) and processing function gives positions which can spoil it
+--processor handles transformations on relSpoilPairs arising from use of non-referential pair orientation
 doGenSpoilPairs :: ((Pos, Pos) -> (Pos, Pos)) -> (Pos, Pos) -> [(Pos, Pos)]
 doGenSpoilPairs processor (pos1@(pos1x, pos1y), pos2@(pos2x, pos2y))
     = map ((\(off1, off2) -> (offsetPos pos1 off1, offsetPos pos2 off2)) . processor) relSpoilPairs
-    -- = map (\((rpos1x, rpos1y), (rpos2x, rpos2y) -> ((rpos2x + pos2x), (rpos2y + pos2y))). processor) relSpoilPairs
 
 --wrapper around doGenSpoilPairs
 genSpoilPairs :: (Pos, Pos) -> [(Pos, Pos)]
@@ -97,7 +107,7 @@ relJumps :: [Pos]
 relJumps = [(1, -2), (1, 2), (2, 1), (2, -1), (-1, 2), (-1, -2), (-2, 1), (-2, -1)]
 
 jumps :: Pos -> [Pos]
-jumps (posx, posy) = map (\(relx, rely) -> (posx + relx, posy + rely)) relJumps
+jumps (posy, posx) = map (\(rely, relx) -> (posy + rely, posx + relx)) relJumps
 
 getConnectedPegs :: Peg -> Pegs -> Pegs
 getConnectedPegs peg pegs = let connectedPos = jumps (pegPos peg) 
@@ -170,11 +180,4 @@ isWinningGroup board group = False
 
 getWinner :: Board -> Maybe Color
 getWinner board = Nothing
-
---testing 
-
-empty1 = placePeg (mkBoard 3 4) Peg{pegPos=(1, 1), pegColor=White}
-
-nlPrint :: String -> IO ()
-nlPrint s = putStrLn s
 
