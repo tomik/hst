@@ -28,13 +28,13 @@ refPos1 = (2, 2)
 --peg cannot be placed
 invalidPegs = [
               --corners
-              Peg{pegPos=(0, 0), pegColor=White},  
+              Peg{pegPos=(0, 0), pegColor=White},
               Peg{pegPos=(refSizex - 1, refSizey - 1), pegColor=White},
               Peg{pegPos=(refSizex - 1, 0), pegColor=White},
               Peg{pegPos=(0, refSizey - 1), pegColor=White},
               --only white
-              Peg{pegPos=(0, 1), pegColor=Black},  
-              Peg{pegPos=(refSizex - 1, 1), pegColor=Black},  
+              Peg{pegPos=(0, 1), pegColor=Black},
+              Peg{pegPos=(refSizex - 1, 1), pegColor=Black},
               --out ot the board
               Peg{pegPos=(-1, 0), pegColor=White},
               Peg{pegPos=(refSizex, 0), pegColor=White}
@@ -54,15 +54,15 @@ invalidPegSeqs = [
 testInvalidPegSeqs = let testBoards = map (\(seq, peg) -> placePegSeq refBoard seq) invalidPegSeqs
                          (_, invalidPegs) = unzip invalidPegSeqs
                          newTestBoards = map (\(board, peg) -> placePegFallback board peg) (zip testBoards invalidPegs)
-                     in TestCase $ 
-                        sequenceAssertions $ 
+                     in TestCase $
+                        sequenceAssertions $
                         map (\(b1, b2) -> assertEqual "testInvalidPegSeqs fail" b1 b2) (zip testBoards newTestBoards)
 
 --winning check
 
-boardTest = TestList [testInvalidPegs, testInvalidPegSeqs] 
+boardTest = TestList [testInvalidPegs, testInvalidPegSeqs]
 runTests = runTestTT boardTest
-run = runTests 
+run = runTests
 
 main = runTests
 

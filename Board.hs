@@ -1,7 +1,7 @@
 module Board where
 
 import qualified Data.Map as Map
-import Data.List 
+import Data.List
 
 import Utils (slice, exportMaybes)
 
@@ -15,11 +15,11 @@ instance Show Color where
 
 --size is (maxrow + 1, maxcol + 1)
 type Size = (Int, Int)
---pos is (row, col) where row|col is in [0, maxrow|maxcol -1] 
+--pos is (row, col) where row|col is in [0, maxrow|maxcol -1]
 type Pos = (Int, Int)
 
 data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Show, Eq)
-type Pegs = [Peg] 
+type Pegs = [Peg]
 
 data Group = Group {grpColor:: Color, grpPegs :: [Peg]} deriving (Show, Eq)
 type Groups = Map.Map Pos Group
@@ -27,22 +27,22 @@ type Groups = Map.Map Pos Group
 data Board = Board {bdSize :: Size, bdPegs:: Pegs, bdToPlay :: Color, bdGroups :: Groups} deriving (Eq)
 
 --abs + rel pos -> pos
-offsetPos :: Pos -> Pos -> Pos 
+offsetPos :: Pos -> Pos -> Pos
 offsetPos (posy, posx) (offy, offx) = (posy + offy, posx + offx)
 
 showSquare :: Board -> Pos -> String
 showSquare board pos = let value = Map.lookup pos (bdGroups board)
-                       in case value of 
+                       in case value of
                        Nothing -> " . "
                        Just group -> " " ++ show (grpColor group) ++ " "
 
-instance Show Board where 
+instance Show Board where
     show board = let (sizey, sizex) = bdSize board
                      line = [ showSquare board (row, col) | row <- [0, 1..(sizey - 1)], col <- [0, 1..(sizex - 1)] ]
                      header = "Board " ++ (show $ bdToPlay board) ++ " to play:"
                  in unlines $ [header] ++
-                              (map concat $ slice sizex line) ++ 
-                              ["Pegs: " ++ show (bdPegs board)] ++ 
+                              (map concat $ slice sizex line) ++
+                              ["Pegs: " ++ show (bdPegs board)] ++
                               ["Groups: " ++ show (bdGroups board)]
 
     --show board = foldl (++) "" [show $ pegPos peg | peg <- bdPegs board]
@@ -51,15 +51,15 @@ oppColor :: Color -> Color
 oppColor White = Black
 oppColor Black = White
 
-getRow :: Pos -> Int 
-getRow (row, col) = row 
+getRow :: Pos -> Int
+getRow (row, col) = row
 
-getCol :: Pos -> Int 
+getCol :: Pos -> Int
 getCol (row, col) = col
 
 mkBoard :: Int -> Int -> Board
 mkBoard sizey sizex = Board {
-                        bdSize = (sizey, sizex), 
+                        bdSize = (sizey, sizex),
                         bdPegs = [],
                         bdToPlay = White,
                         bdGroups = Map.empty
@@ -77,19 +77,19 @@ isGoalEdge _ (_, 0) Black = True
 isGoalEdge (sizey, _) (posy, _) White | sizey - 1 == posy = True
 isGoalEdge (_, sizex) (_, posx) Black | sizex - 1 == posx = True
 isGoalEdge _ _ _ = False
-                      
+
 isEdge :: Size -> Pos -> Bool
 isEdge size pos = (isGoalEdge pos size White) || (isGoalEdge pos size Black)
 
 isOnBoard :: Board -> Peg -> Bool
 isOnBoard board peg = getRow (pegPos peg) < getRow (bdSize board)
-                      && getRow (pegPos peg) >= 0 
+                      && getRow (pegPos peg) >= 0
                       && getCol (pegPos peg) < getCol (bdSize board)
-                      && getCol (pegPos peg) >= 0 
+                      && getCol (pegPos peg) >= 0
 
 --on the board, not on the opponents edge and on the empty square
 isLegalMove :: Board -> Peg -> Bool
-isLegalMove board peg = isOnBoard board peg 
+isLegalMove board peg = isOnBoard board peg
                         && not (isGoalEdge (bdSize board) (pegPos peg) (oppColor $ pegColor peg))
                         && length (filter (\p -> (pegPos peg) == (pegPos p)) (bdPegs board)) == 0
 
@@ -100,7 +100,7 @@ negateFirst :: (Num a) => (a, b) -> (a, b)
 negateFirst (a, b) = (-1 * a, b)
 
 --relative positions of cross pairs for bridge at referential position (2`oclock)
-relSpoilPairs = [((-2, 0), (0,  1)), ((-1, -1), (0, -1)), ((-1, 0), ( 1,  1)), (( 1, 0), (-1,  1)), 
+relSpoilPairs = [((-2, 0), (0,  1)), ((-1, -1), (0, -1)), ((-1, 0), ( 1,  1)), (( 1, 0), (-1,  1)),
                  (( 2, 0), (0, -1)), (( 1,  1), (0, -1)), (( 1, 0), (-1, -1)), ((-1, 0), ( 1, -1))]
 
 --for a potential bridge (pair of positions) and processing function gives positions which can spoil it
@@ -132,15 +132,15 @@ jumps :: Pos -> [Pos]
 jumps (posy, posx) = map (\(rely, relx) -> (posy + rely, posx + relx)) relJumps
 
 getConnectedPegs :: Peg -> Pegs -> Pegs
-getConnectedPegs peg pegs = let connectedPos = jumps (pegPos peg) 
+getConnectedPegs peg pegs = let connectedPos = jumps (pegPos peg)
                             in filter (\p -> pegColor(p) == pegColor(peg) && elem (pegPos p) connectedPos) pegs
 
 mergeGroups :: [Group] -> Group -> Group
-mergeGroups [] group = let nubPegs = nub $ grpPegs group 
-                       in Group{ grpColor = grpColor(group), 
+mergeGroups [] group = let nubPegs = nub $ grpPegs group
+                       in Group{ grpColor = grpColor(group),
                                  grpPegs = nubPegs
                                }
-mergeGroups (g:gs) group = let updatedGroup = Group { grpColor = grpColor(group), 
+mergeGroups (g:gs) group = let updatedGroup = Group { grpColor = grpColor(group),
                                                     grpPegs = grpPegs(group) ++ grpPegs(group)
                                                   }
                          in mergeGroups gs group
@@ -148,19 +148,19 @@ mergeGroups (g:gs) group = let updatedGroup = Group { grpColor = grpColor(group)
 -- expects legal move
 placePeg :: Board -> Peg -> Board
 placePeg board peg | not $ isLegalMove board peg = error "illegal move"
-placePeg board peg | otherwise = 
+placePeg board peg | otherwise =
     let newPegs = peg:(bdPegs board)
         -- find neighboring pegs
         neighbors = getConnectedPegs peg (bdPegs board)
         -- resolve neighboring pegs to groups TODO lookup might return Maybe
-        
-        neighborGroups = exportMaybes $ 
+
+        neighborGroups = exportMaybes $
                          map (\peg -> Map.lookup (pegPos peg) (bdGroups board)) neighbors
-        
+
         -- connect all the neighboring groups
         newGroup = mergeGroups neighborGroups (mkGroup peg)
-        -- update groups 
-        newGroups = foldl (\groups pos -> Map.update (\group->Just newGroup) pos groups) 
+        -- update groups
+        newGroups = foldl (\groups pos -> Map.update (\group->Just newGroup) pos groups)
                         (Map.insert (pegPos peg) newGroup (bdGroups board)) $
                         map (\peg -> pegPos peg) $ neighbors ++ [peg]
         --newGroups = Map.fromList [((pegPos peg), newGroup)]
