@@ -40,12 +40,8 @@ invalidPegs = [
               Peg{pegPos=(refSizex, 0), pegColor=White}
               ]
 
-testInvalidPegs = let newTestBoards = map (placePeg refBoard) invalidPegs
+testInvalidPegs = let newTestBoards = map (placePegFallback refBoard) invalidPegs
                   in TestCase $ sequenceAssertions$ map (assertEqual "testInvalidPegs fail" refBoard) newTestBoards
-
-placePegSeq :: Board -> Pegs -> Board
-placePegSeq initBoard [] = initBoard
-placePegSeq initBoard seq = foldl placePeg initBoard seq
 
 --last of the sequence should not be placed
 invalidPegSeqs = [
@@ -57,7 +53,7 @@ invalidPegSeqs = [
 
 testInvalidPegSeqs = let testBoards = map (\(seq, peg) -> placePegSeq refBoard seq) invalidPegSeqs
                          (_, invalidPegs) = unzip invalidPegSeqs
-                         newTestBoards = map (\(board, peg) -> placePeg board peg) (zip testBoards invalidPegs)
+                         newTestBoards = map (\(board, peg) -> placePegFallback board peg) (zip testBoards invalidPegs)
                      in TestCase $ 
                         sequenceAssertions $ 
                         map (\(b1, b2) -> assertEqual "testInvalidPegSeqs fail" b1 b2) (zip testBoards newTestBoards)

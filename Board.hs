@@ -3,7 +3,7 @@ module Board where
 import qualified Data.Map as Map
 import Data.List 
 
-import Utils (slice)
+import Utils (slice, exportMaybes)
 
 --white connects top to bottom
 --black connects left to right
@@ -71,6 +71,28 @@ mkGroup peg = Group{
                     grpPegs=[peg]
                     }
 
+isGoalEdge:: Size -> Pos -> Color -> Bool
+isGoalEdge _ (0, _) White = True
+isGoalEdge _ (_, 0) Black = True
+isGoalEdge (sizey, _) (posy, _) White | sizey - 1 == posy = True
+isGoalEdge (_, sizex) (_, posx) Black | sizex - 1 == posx = True
+isGoalEdge _ _ _ = False
+                      
+isEdge :: Size -> Pos -> Bool
+isEdge size pos = (isGoalEdge pos size White) || (isGoalEdge pos size Black)
+
+isOnBoard :: Board -> Peg -> Bool
+isOnBoard board peg = getRow (pegPos peg) < getRow (bdSize board)
+                      && getRow (pegPos peg) >= 0 
+                      && getCol (pegPos peg) < getCol (bdSize board)
+                      && getCol (pegPos peg) >= 0 
+
+--on the board, not on the opponents edge and on the empty square
+isLegalMove :: Board -> Peg -> Bool
+isLegalMove board peg = isOnBoard board peg 
+                        && not (isGoalEdge (bdSize board) (pegPos peg) (oppColor $ pegColor peg))
+                        && length (filter (\p -> (pegPos peg) == (pegPos p)) (bdPegs board)) == 0
+
 swapPair :: (a,b) -> (b, a)
 swapPair (a, b) = (b, a)
 
@@ -113,28 +135,6 @@ getConnectedPegs :: Peg -> Pegs -> Pegs
 getConnectedPegs peg pegs = let connectedPos = jumps (pegPos peg) 
                             in filter (\p -> pegColor(p) == pegColor(peg) && elem (pegPos p) connectedPos) pegs
 
-isGoalEdge:: Size -> Pos -> Color -> Bool
-isGoalEdge (0, _) _ White = True
-isGoalEdge (_, 0) _ Black = True
-isGoalEdge (row1, _) (row2, _) White | row1 == row2 = True
-isGoalEdge (_, col1) (_, col2) Black | col1 == col2 = True
-isGoalEdge _ _ _ = False
-                      
-isEdge :: Size -> Pos -> Bool
-isEdge size pos = (isGoalEdge pos size White) || (isGoalEdge pos size Black)
-
-isOnBoard :: Board -> Peg -> Bool
-isOnBoard board peg = getRow (pegPos peg) < getRow (bdSize board)
-                      && getRow (pegPos peg) >= 0 
-                      && getCol (pegPos peg) < getCol (bdSize board)
-                      && getCol (pegPos peg) >= 0 
-
---on the board, not on the opponents edge and on the empty square
-isLegalMove :: Board -> Peg -> Bool
-isLegalMove board peg = isOnBoard board peg 
-                        && not (isGoalEdge (bdSize board) (pegPos peg) (pegColor peg))
-                        && length (filter (\p -> (pegPos peg) == (pegPos p)) (bdPegs board)) == 0
-
 mergeGroups :: [Group] -> Group -> Group
 mergeGroups [] group = let nubPegs = nub $ grpPegs group 
                        in Group{ grpColor = grpColor(group), 
@@ -145,33 +145,47 @@ mergeGroups (g:gs) group = let updatedGroup = Group { grpColor = grpColor(group)
                                                   }
                          in mergeGroups gs group
 
-exportMaybes :: [Maybe a] -> [a]
-exportMaybes [] = [] 
-exportMaybes (Just x:xs) = x:(exportMaybes xs)
-exportMaybes (Nothing:xs) = exportMaybes xs
-
+-- expects legal move
 placePeg :: Board -> Peg -> Board
-placePeg board peg = let newPegs = peg:(bdPegs board)
-                         -- find neighboring pegs
-                         neighbors = getConnectedPegs peg (bdPegs board)
-                         -- resolve neighboring pegs to groups TODO lookup might return Maybe
-                         
-                         neighborGroups = exportMaybes $ 
-                                          map (\peg -> Map.lookup (pegPos peg) (bdGroups board)) neighbors
-                         
-                         -- connect all the neighboring groups
-                         newGroup = mergeGroups neighborGroups (mkGroup peg)
-                         -- update groups 
-                         newGroups = foldl (\groups pos -> Map.update (\group->Just newGroup) pos groups) 
-                                         (Map.insert (pegPos peg) newGroup (bdGroups board)) $
-                                         map (\peg -> pegPos peg) $ neighbors ++ [peg]
-                         --newGroups = Map.fromList [((pegPos peg), newGroup)]
-                     -- create the board
-                     in Board {bdSize = bdSize board,
-                               bdPegs = newPegs,
-                               bdGroups = newGroups,
-                               bdToPlay = bdToPlay board
-                              }
+placePeg board peg | not $ isLegalMove board peg = error "illegal move"
+placePeg board peg | otherwise = 
+    let newPegs = peg:(bdPegs board)
+        -- find neighboring pegs
+        neighbors = getConnectedPegs peg (bdPegs board)
+        -- resolve neighboring pegs to groups TODO lookup might return Maybe
+        
+        neighborGroups = exportMaybes $ 
+                         map (\peg -> Map.lookup (pegPos peg) (bdGroups board)) neighbors
+        
+        -- connect all the neighboring groups
+        newGroup = mergeGroups neighborGroups (mkGroup peg)
+        -- update groups 
+        newGroups = foldl (\groups pos -> Map.update (\group->Just newGroup) pos groups) 
+                        (Map.insert (pegPos peg) newGroup (bdGroups board)) $
+                        map (\peg -> pegPos peg) $ neighbors ++ [peg]
+        --newGroups = Map.fromList [((pegPos peg), newGroup)]
+     -- create the board
+     in Board {bdSize = bdSize board,
+               bdPegs = newPegs,
+               bdGroups = newGroups,
+               bdToPlay = bdToPlay board
+              }
+
+--silently falls back to original board if move not legal
+placePegFallback :: Board -> Peg -> Board
+placePegFallback board peg | not $ isLegalMove board peg = board
+placePegFallback board peg | otherwise = placePeg board peg
+
+--if not legal move returns Nothing
+placePegMaybe :: Board -> Peg -> Maybe Board
+placePegMaybe board peg | not $ isLegalMove board peg = Nothing
+placePegMaybe board peg | otherwise = Just $ placePeg board peg
+
+--places a sequence of pegs - expects move to be legal
+placePegSeq :: Board -> Pegs -> Board
+placePegSeq initBoard [] = initBoard
+placePegSeq initBoard seq = foldl placePeg initBoard seq
+
 
 --TODO
 
