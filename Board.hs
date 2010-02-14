@@ -186,10 +186,9 @@ dropSpoilPegs newPeg neighborPegs alreadyConnected =
     --keep only those neighbors which are not spoiled
     in map fst $ filter (not . snd) $ zip neighborPegs spoiled
 
+--drops neighbors new peg cannot connect to 
 genGoodNeighbors :: Board -> Peg -> Pegs -> Pegs
-genGoodNeighbors board newPeg neighbors = 
-    let isBridge = \pos1 pos2 -> arePosConnected board [pos1, pos2]
-    in dropSpoilPegs newPeg neighbors isBridge  
+genGoodNeighbors board newPeg neighbors = dropSpoilPegs newPeg neighbors (isBridge board)
 
 -- ==============================
 --connecting pegs and merging groups
@@ -222,6 +221,12 @@ arePosConnected :: Board -> [Pos] -> Bool
 arePosConnected board positions = let nubbed = nub $ mapFetch positions (bdGroupMap board) 
                                   in length nubbed <= 1 
 
+isBridge :: Board -> Pos -> Pos -> Bool
+isBridge board pos1 pos2 = 
+    let group1 = Map.lookup pos1 (bdGroupMap board)
+        group2 = Map.lookup pos2 (bdGroupMap board)
+    in group1 == group2 && group1 /= Nothing
+
 arePegsConnected :: Board -> Pegs -> Bool
 arePegsConnected board pegs = arePosConnected board $ map pegPos pegs 
 
@@ -242,7 +247,7 @@ placePeg board peg | otherwise =
         -- update groupMap with newgroups id
         neighbors = getConnectedPegs board peg 
         -- consider only those we can connectTo
-        goodNeighbors = neighbors --genGoodNeighbors board peg neighbors 
+        goodNeighbors = genGoodNeighbors board peg neighbors 
         -- connect all the neighboring groups
         groupsToUpdate = nub $ mapFetch (map pegPos goodNeighbors) (bdGroupMap board)
         -- collect all the positions that must be updated

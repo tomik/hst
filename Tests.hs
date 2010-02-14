@@ -110,16 +110,16 @@ testGenSpoilPairs = TestList $ map mkTestSpoil dataSpoil
 -- ==============================
 
 {- scenario:
- .  w  .  .  .  .  .
- .  .  . b1  .  .  .
- . b1  w  .  .  .  .
  .  .  .  .  .  .  .
+ .  b  .  .  .  .  .
+ .  .  . w1  .  .  .
+ . w1  b  .  .  .  .
  .  .  .  .  .  .  .
  .  .  .  .  .  .  .
  -}
 
---in jest data white is always connected with all pegs whilst black is not connected with a;;
-dataBridges = [mkPegs [(2, 1, Black), (0, 1, White), (1, 3, Black), (2, 2, White)]]
+--in test data white is connected while black is not connected (only one bridge possible)
+dataBridges = [mkPegs [(3, 1, White), (1, 1, Black), (2, 3, White), (2, 2, Black)]]
 
 bridgeCheck :: Board -> Color -> Bool
 bridgeCheck board color = arePegsConnected board (pegsByColor (getBoardPegs board) color)
