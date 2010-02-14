@@ -68,7 +68,7 @@ separatePegs = mkPegs [(2, 2, Black), (3, 4, Black),
                        (4, 3, White), (5, 2, Black)]
 
 testPegConnect = TestCase $ assertEqual "testPegConnect fail" connectedPegs $
-                 getConnectedPegs (mkPeg 3 3 White) (connectedPegs ++ separatePegs)
+                 filterConnectedPegs (mkPeg 3 3 White) (connectedPegs ++ separatePegs)
 
 
 --peg spoiling pair generation
@@ -122,7 +122,7 @@ testGenSpoilPairs = TestList $ map mkTestSpoil dataSpoil
 dataBridges = [mkPegs [(2, 1, Black), (0, 1, White), (1, 3, Black), (2, 2, White)]]
 
 bridgeCheck :: Board -> Color -> Bool
-bridgeCheck board color = arePegsConnected board (pegsByColor (bdPegs board) color)
+bridgeCheck board color = arePegsConnected board (pegsByColor (getBoardPegs board) color)
 
 mkTestBridge :: Pegs -> Test
 mkTestBridge pegSeq = 

@@ -3,7 +3,7 @@ module Board where
 import qualified Data.Map as Map
 import Data.List
 
-import Utils (slice, exportMaybes)
+import Utils (slice, mapFetch)
 
 -- ==============================
 --declarations and instancing
@@ -22,22 +22,25 @@ type Size = (Int, Int)
 --pos is (row, col) where row|col is in [0, maxrow|maxcol -1]
 type Pos = (Int, Int)
 
+type GroupId = Pos
+
 data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Eq)
 type Pegs = [Peg]
+type PegMap = Map.Map Pos Peg
 
 instance Show Peg where 
     show peg = "[" ++ show (pegPos peg) ++ show (pegColor peg) ++ "]"
 
-data Group = Group {grpColor:: Color, grpPegs :: [Peg]} deriving (Show, Eq)
-type Groups = Map.Map Pos Group
+data Group = Group {grpColor :: Color, grpId :: GroupId} deriving (Show, Eq)
+type GroupMap = Map.Map GroupId Group
 
-data Board = Board {bdSize :: Size, bdPegs:: Pegs, bdToPlay :: Color, bdGroups :: Groups} deriving (Eq)
+data Board = Board {bdSize :: Size, bdPegMap:: PegMap, bdToPlay :: Color, bdGroupMap :: GroupMap} deriving (Eq)
 
 showSquare :: Board -> Pos -> String
-showSquare board pos = let value = Map.lookup pos (bdGroups board)
+showSquare board pos = let value = Map.lookup pos (bdPegMap board)
                        in case value of
                        Nothing -> " . "
-                       Just group -> " " ++ show (grpColor group) ++ " "
+                       Just peg -> " " ++ show (pegColor peg) ++ " "
 
 instance Show Board where
     show board = let (sizey, sizex) = bdSize board
@@ -45,12 +48,28 @@ instance Show Board where
                      header = "Board " ++ (show $ bdToPlay board) ++ " to play:"
                  in unlines $ [header] ++
                               (map concat $ slice sizex line) ++
-                              ["Pegs: " ++ show (bdPegs board)] ++
-                              ["Groups: " ++ show (bdGroups board)]
+                              ["Groups: " ++ show (Map.elems $ bdGroupMap board)]
     
 -- ==============================
 --constructors and convenience functions
 -- ==============================
+
+mkBoard :: Int -> Int -> Board
+mkBoard sizey sizex = Board {
+                        bdSize = (sizey, sizex),
+                        bdToPlay = White,
+                        bdPegMap = Map.empty,
+                        bdGroupMap = Map.empty
+                        }
+
+mkGroup :: Peg -> Group
+mkGroup peg = Group{
+                    grpColor=pegColor peg,
+                    grpId=pegPos peg
+                    }
+
+mkPeg :: Int -> Int -> Color -> Peg
+mkPeg posy posx color = Peg{pegPos=(posy, posx), pegColor=color}
 
 --abs + rel pos -> pos
 offsetPos :: Pos -> Pos -> Pos
@@ -66,22 +85,11 @@ getRow (row, col) = row
 getCol :: Pos -> Int
 getCol (row, col) = col
 
-mkBoard :: Int -> Int -> Board
-mkBoard sizey sizex = Board {
-                        bdSize = (sizey, sizex),
-                        bdPegs = [],
-                        bdToPlay = White,
-                        bdGroups = Map.empty
-                        }
+pegOnRow :: Peg -> Int -> Bool
+pegOnRow peg row = (getRow $ pegPos peg) == row
 
-mkGroup :: Peg -> Group
-mkGroup peg = Group{
-                    grpColor=pegColor peg,
-                    grpPegs=[peg]
-                    }
-
-mkPeg :: Int -> Int -> Color -> Peg
-mkPeg posy posx color = Peg{pegPos=(posy, posx), pegColor=color}
+pegOnCol :: Peg -> Int -> Bool
+pegOnCol peg col = (getCol $ pegPos peg) == col
 
 mkPegs :: [(Int, Int, Color)] -> Pegs
 mkPegs [] = []
@@ -92,6 +100,13 @@ pegsByColor pegs color = filter (\peg -> pegColor peg == color) pegs
 
 whitePegs = flip pegsByColor White
 blackPegs = flip pegsByColor Black
+
+pegSameColor :: Peg -> Peg -> Bool
+pegSameColor peg1 peg2 = pegColor peg1 == pegColor peg2
+
+getBoardPegs :: Board -> Pegs
+getBoardPegs board = Map.elems $ bdPegMap board
+
 
 -- ==============================
 --limitations
@@ -117,8 +132,7 @@ isOnBoard board peg = getRow (pegPos peg) < getRow (bdSize board)
 isLegalMove :: Board -> Peg -> Bool
 isLegalMove board peg = isOnBoard board peg
                         && not (isGoalEdge (bdSize board) (pegPos peg) (oppColor $ pegColor peg))
-                        && length (filter (\p -> (pegPos peg) == (pegPos p)) (bdPegs board)) == 0
-
+                        && Map.lookup (pegPos peg) (bdPegMap board) == Nothing 
 
 -- ==============================
 --bridge spoiling
@@ -187,24 +201,26 @@ relJumps = [(1, -2), (1, 2), (2, 1), (2, -1), (-1, 2), (-1, -2), (-2, 1), (-2, -
 jumps :: Pos -> [Pos]
 jumps (posy, posx) = map (\(rely, relx) -> (posy + rely, posx + relx)) relJumps
 
-getConnectedPegs :: Peg -> Pegs -> Pegs
-getConnectedPegs peg pegs = let connectedPos = jumps (pegPos peg)
-                            in filter (\p -> pegColor(p) == pegColor(peg) && elem (pegPos p) connectedPos) pegs
+filterConnectedPegs :: Peg -> Pegs -> Pegs
+filterConnectedPegs peg toFilter =  
+    let connectedPos = jumps (pegPos peg)
+    in filter (\apeg -> pegSameColor peg apeg && elem (pegPos apeg) connectedPos) toFilter
+
+getConnectedPegs :: Board -> Peg -> Pegs
+getConnectedPegs board peg = filterConnectedPegs peg $ getBoardPegs board
+
 
 mergeGroups :: [Group] -> Group -> Group
-mergeGroups [] group = let nubPegs = nub $ grpPegs group
-                       in Group{ grpColor = grpColor(group),
-                                 grpPegs = nubPegs
-                               }
-mergeGroups (g:gs) group = let updatedGroup = Group { grpColor = grpColor(group),
-                                                    grpPegs = grpPegs(group) ++ grpPegs(group)
-                                                  }
-                         in mergeGroups gs group
+mergeGroups [] group = group
+mergeGroups (g:gs) group = 
+    let updatedGroup = Group {grpColor = grpColor group, 
+                              grpId = grpId group}
+    in mergeGroups gs updatedGroup
 
+--checks whether all the pegs have same group number
 arePosConnected :: Board -> [Pos] -> Bool
-arePosConnected board positions = let groups = map (\pos -> Map.lookup (pos) (bdGroups board)) positions
-                                      nubbed = nub groups
-                                  in length nubbed == 1 && nubbed !! 0 /= Nothing
+arePosConnected board positions = let nubbed = nub $ mapFetch positions (bdGroupMap board) 
+                                  in length nubbed <= 1 
 
 arePegsConnected :: Board -> Pegs -> Bool
 arePegsConnected board pegs = arePosConnected board $ map pegPos pegs 
@@ -213,29 +229,34 @@ arePegsConnected board pegs = arePosConnected board $ map pegPos pegs
 --move placing and wrappers
 -- ==============================
 
+--TODO optimize 
+getPosForGroup :: Board -> Group -> [Pos]
+getPosForGroup board group = Map.keys $ Map.filter ((==) group) (bdGroupMap board) 
+
 -- expects legal move
 placePeg :: Board -> Peg -> Board
 placePeg board peg | not $ isLegalMove board peg = error "illegal move"
 placePeg board peg | otherwise =
-    let newPegs = peg:(bdPegs board)
-        -- find neighboring pegs
-        neighbors = getConnectedPegs peg (bdPegs board)
+    let -- pegMapcontaining new peg
+        newPegMap = Map.insert (pegPos peg) peg (bdPegMap board)
+        -- update groupMap with newgroups id
+        neighbors = getConnectedPegs board peg 
         -- consider only those we can connectTo
-        goodNeighbors = genGoodNeighbors board peg neighbors 
-        -- resolve neighboring pegs to groups TODO lookup might return Maybe
-        neighborGroups = exportMaybes $
-                         map (\peg -> Map.lookup (pegPos peg) (bdGroups board)) goodNeighbors
+        goodNeighbors = neighbors --genGoodNeighbors board peg neighbors 
         -- connect all the neighboring groups
-        newGroup = mergeGroups neighborGroups (mkGroup peg)
-        -- update groups
-        newGroups = foldl (\groups pos -> Map.update (\group->Just newGroup) pos groups)
-                        (Map.insert (pegPos peg) newGroup (bdGroups board)) $
-                        map (\peg -> pegPos peg) $ goodNeighbors ++ [peg]
-        --newGroups = Map.fromList [((pegPos peg), newGroup)]
+        groupsToUpdate = nub $ mapFetch (map pegPos goodNeighbors) (bdGroupMap board)
+        -- collect all the positions that must be updated
+        posToUpdate = concat $ map (getPosForGroup board) groupsToUpdate
+        -- merge groups in groupMap
+        newGroup = mergeGroups groupsToUpdate $ mkGroup peg
+        -- find neighboring pegs
+        newGroupMap = foldl (\groupMap pos -> Map.insert pos newGroup groupMap) 
+                      (bdGroupMap board) $ posToUpdate ++ [pegPos peg]
+
      -- create the board
      in Board {bdSize = bdSize board,
-               bdPegs = newPegs,
-               bdGroups = newGroups,
+               bdPegMap = newPegMap,
+               bdGroupMap = newGroupMap,
                bdToPlay = bdToPlay board
               }
 
@@ -258,12 +279,7 @@ placePegSeq initBoard seq = foldl placePeg initBoard seq
 --winner recognition functionality
 -- ==============================
 
-pegOnRow :: Peg -> Int -> Bool
-pegOnRow peg row = (getRow $ pegPos peg) == row
-
-pegOnCol :: Peg -> Int -> Bool
-pegOnCol peg col = (getCol $ pegPos peg) == col
-
+{-
 isWinningGroup :: Board -> Group -> Bool
 isWinningGroup board group | grpColor group == White 
     = any (flip pegOnRow 0) (grpPegs group) && 
@@ -273,11 +289,11 @@ isWinningGroup board group | grpColor group == Black
       any (flip pegOnCol (getCol (bdSize board) - 1)) (grpPegs group) 
 
 getWinner :: Board -> Maybe Color
-getWinner board = let winningGroups = filter (isWinningGroup board) $ nub $ Map.elems $ bdGroups board
+getWinner board = let winningGroups = filter (isWinningGroup board) $ nub $ Map.elems $ bdGroupMap board
                   in getWinnerFromGroups winningGroups
 
 getWinnerFromGroups :: [Group] -> Maybe Color 
 getWinnerFromGroups [] = Nothing
 getWinnerFromGroups (group:[]) = Just $ grpColor group
 getWinnerFromGroups _ = error "More than one winning group"
-
+-}
