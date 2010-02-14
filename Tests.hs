@@ -15,39 +15,39 @@ refSize = (refSizey, refSizex)
 refBoard = mkBoard refSizex refSizey
 refPos1 = (1, 1)
 
---peg validity 
+-- peg validity 
 -- ==============================
 
+outOfBoardPegs = mkPegs [
+    --corners
+    (0, 0, White), 
+    (0, refSizey - 1, White),
+    (refSizey - 1, refSizex - 1, White), 
+    (refSizey - 1, 0, White), 
+    --only white can play
+    (0, 1, Black), 
+    (refSizey - 1, 1, Black),
+    --only black can play
+    (1, 0, White), 
+    (1, refSizex -1, White),
+    --out ot the board
+    (-1, 0, White), (refSizey, 0, White)
+    ]
+
 --peg cannot be placed
-invalidPegs = mkPegs [
-              --corners
-              (0, 0, White), (refSizex - 1, refSizey - 1, White), 
-              (refSizex - 1, 0, White), (0, refSizey - 1, White),
-              --only white
-              (0, 1, Black), (refSizex - 1, 1, Black),
-              --out ot the board
-              (-1, 0, White), (refSizex, 0, White)
-              ]
+testOutOfBoard = let newTestBoards = map (placePegFallback refBoard) outOfBoardPegs
+                 in TestCase $ sequenceAssertions$ map (assertEqual "testOutOfBoard fail" refBoard) newTestBoards
 
-testInvalidPegs = let newTestBoards = map (placePegFallback refBoard) invalidPegs
-                  in TestCase $ sequenceAssertions$ map (assertEqual "testInvalidPegs fail" refBoard) newTestBoards
+--tests that it is not possible to place peg on peg 
+testPegOnPeg = 
+    TestCase $ do
+    let b1 = placePegFallback refBoard $ mkPeg 1 1 White 
+    let b2 = placePegFallback b1 $ mkPeg 1 1 White 
+    assertEqual "testPegOnPeg fail" b1 b2
 
---last of the sequence should not be placed
-invalidPegSeqs = [
-              --two pegs at the same position same colors
-              ([Peg{pegPos=refPos1, pegColor=White}], Peg{pegPos=refPos1, pegColor=White}),
-              --two pegs at the same position different colors
-              ([Peg{pegPos=refPos1, pegColor=White}], Peg{pegPos=refPos1, pegColor=Black})
-                 ]
+testInvalidPeg = TestList [testOutOfBoard, testPegOnPeg]
 
-testInvalidPegSeqs = let testBoards = map (\(seq, peg) -> placePegSeq refBoard seq) invalidPegSeqs
-                         (_, invalidPegs) = unzip invalidPegSeqs
-                         newTestBoards = map (\(board, peg) -> placePegFallback board peg) (zip testBoards invalidPegs)
-                     in TestCase $
-                        sequenceAssertions $
-                        map (\(b1, b2) -> assertEqual "testInvalidPegSeqs fail" b1 b2) (zip testBoards newTestBoards)
-
---peg connecting
+-- peg connecting
 -- ==============================
 
 {- scenario:
@@ -70,21 +70,15 @@ separatePegs = mkPegs [(2, 2, Black), (3, 4, Black),
 testPegConnect = TestCase $ assertEqual "testPegConnect fail" connectedPegs $
                  filterConnectedPegs (mkPeg 3 3 White) (connectedPegs ++ separatePegs)
 
-
---peg spoiling pair generation
+-- peg spoiling pair generation
 -- ==============================
 
 --low level spoiling functionality
---
-{- scenario 1(b), 2(w)
- .  w  .  .  .  .  .
- .  .  .  b  .  .  .
- .  b  w  .  .  .  .
--}
-{- scenario 3, 4
- .  w  .  b  .  .  .
- .  .  .  w  .  .  .
- .  .  b  .  .  .  .
+{-
+ scenario 1, 2    scenario 3, 4
+ .  w  .  .  .    .  w  .  b  .
+ .  .  .  b  .    .  .  .  w  .
+ .  b  w  .  .    .  .  b  .  .
 -}
 
 --(test number, bridge pair, spoil pair)
@@ -94,61 +88,62 @@ dataSpoil = [ ("1", ((2, 1), (1, 3)), ((0, 1), (2, 2))),
               ("4", ((2, 2), (0, 3)), ((1, 3), (0, 1)))
             ]
               
-
 --test creator
 mkTestSpoil (label, bridgePair, spoiledPair) = TestCase $ 
-        do 
-            assertBool ("testSpoilSymmetry " ++  label ++ " fail") $ 
-                sort (genSpoilPairs bridgePair) == sort (genSpoilPairs $ swapPair bridgePair)
-            assertBool ("testSpoilElem " ++ label ++ " fail") $ 
-                elem spoiledPair (genSpoilPairs bridgePair) || 
-                elem (swapPair spoiledPair) (genSpoilPairs bridgePair)
+    do 
+    assertBool ("testSpoilSymmetry " ++  label ++ " fail") $ 
+        sort (genSpoilPairs bridgePair) == sort (genSpoilPairs $ swapPair bridgePair)
+    assertBool ("testSpoilElem " ++ label ++ " fail") $ 
+        elem spoiledPair (genSpoilPairs bridgePair) || 
+        elem (swapPair spoiledPair) (genSpoilPairs bridgePair)
 
 testGenSpoilPairs = TestList $ map mkTestSpoil dataSpoil
 
---peg bridges 
+-- peg bridges 
 -- ==============================
 
-{- scenario:
- .  .  .  .  .  .  .
- .  b  .  .  .  .  .
- .  .  . w1  .  .  .
- . w1  b  .  .  .  .
- .  .  .  .  .  .  .
- .  .  .  .  .  .  .
+{-
+ scenario1:     scenario2:     
+ .  .  .  . .   .  .  .  . .
+ .  b  .  . .   .  b w1  . .
+ .  .  . w1 .   .  .  .  b .
+ . w1  b  . .   . w1  .  . .
  -}
 
 --in test data white is connected while black is not connected (only one bridge possible)
-dataBridges = [mkPegs [(3, 1, White), (1, 1, Black), (2, 3, White), (2, 2, Black)]]
+dataBridges = [--scenario1 (in both color combinations)
+               mkPegs [(3, 1, White), (2, 3, White), (1, 1, Black), (3, 2, Black)], 
+               mkPegs [(1, 1, White), (3, 2, White), (3, 1, Black), (2, 3, Black)], 
+               --scenario2 
+               mkPegs [(3, 1, White), (1, 2, White), (1, 1, Black), (2, 3, Black)], 
+               mkPegs [(1, 1, White), (2, 3, White), (3, 1, Black), (1, 2, Black)]
+               ]
 
 bridgeCheck :: Board -> Color -> Bool
 bridgeCheck board color = arePegsConnected board (pegsByColor (getBoardPegs board) color)
 
 mkTestBridge :: Pegs -> Test
 mkTestBridge pegSeq = 
-                  let testBoard = placePegSeq refBoard pegSeq
-                      resultSpoil = not . (flip bridgeCheck Black) $ testBoard
-                      resultBuild = flip bridgeCheck White $ testBoard
-                  in TestCase $ sequenceAssertions $
-                     [putStrLn (show testBoard),
-                      assertBool "testBridgeBuild fail" resultBuild,
-                      assertBool "testBridgeSpoil fail" resultSpoil]
-
+    let testBoard = placePegSeq refBoard pegSeq
+        resultSpoil = not . (flip bridgeCheck Black) $ testBoard
+        resultBuild = flip bridgeCheck White $ testBoard
+    in TestCase $ sequenceAssertions $
+       [assertBool "testBridgeBuild fail" resultBuild,
+        assertBool "testBridgeSpoil fail" resultSpoil]
 
 testBridges = TestList $ map mkTestBridge dataBridges
 
---peg placing 
+-- peg placing 
 -- ==============================
 
---winning check
+-- winning check
 -- ==============================
 
 -- ==============================
 -- Test running
 -- ==============================
 
-boardTest = TestList [testPegConnect, testInvalidPegs, testInvalidPegSeqs, 
-                      testGenSpoilPairs, testBridges]
+boardTest = TestList [testPegConnect, testInvalidPeg, testGenSpoilPairs, testBridges]
 runTests = runTestTT boardTest
 run = runTests
 
