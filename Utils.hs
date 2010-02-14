@@ -10,3 +10,7 @@ exportMaybes :: [Maybe a] -> [a]
 exportMaybes [] = []
 exportMaybes (Just x:xs) = x:(exportMaybes xs)
 exportMaybes (Nothing:xs) = exportMaybes xs
+
+swapPair :: (a,b) -> (b, a)
+swapPair (a, b) = (b, a)
+
