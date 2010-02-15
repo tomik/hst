@@ -139,11 +139,43 @@ testBridges = TestList $ map mkTestBridge dataBridges
 -- winning check
 -- ==============================
 
+--tests placing pegs, connectivity, 
+--asymmetrical boardsizes and winning check
+
+{-
+ scenario1:      scenario2:     
+ .  . w1  .  .   .  .  w  .  .
+ .  . b1  .  .   b1 .  .  .  b1
+ b1 .  . w1  b   .  . b1 w1  .
+ . w1  .  .  .   . w1  .  .  .
+ -}
+
+--(id, who wins, peg list)
+dataWinCheck = 
+    [("1", White, mkPegs [(0, 2, White), (1, 2, Black), (3, 1, White), 
+                          (2, 0, Black), (2, 3, White), (2, 4, Black)]),
+     ("2", Black, mkPegs [(0, 2, White), (2, 2, Black), (3, 1, White), 
+                          (1, 4, Black), (2, 3, White), (1, 0, Black)])
+    ]
+
+winCheckBoard = mkBoard 4 5 
+
+mkTestWinCheck (label, winner, pegSeq) = 
+    let testBoard = placePegSeq winCheckBoard pegSeq
+    in TestCase $ 
+        do 
+        --putStrLn $ show testBoard
+        --putStrLn $ show $ getWinner testBoard
+        assertBool ("testWintCheck " ++ label ++ " fail") $ Just winner == getWinner testBoard
+
+testWinCheck = TestList $ map mkTestWinCheck dataWinCheck
+
 -- ==============================
 -- Test running
 -- ==============================
 
-boardTest = TestList [testPegConnect, testInvalidPeg, testGenSpoilPairs, testBridges]
+boardTest = TestList [testPegConnect, testInvalidPeg, testGenSpoilPairs, 
+                      testBridges, testWinCheck]
 runTests = runTestTT boardTest
 run = runTests
 

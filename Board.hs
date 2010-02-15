@@ -17,10 +17,12 @@ instance Show Color where
     show Black = "B"
     show White = "W"
 
+type Coord = Int
+
 --size is (maxrow + 1, maxcol + 1)
-type Size = (Int, Int)
+type Size = (Coord, Coord)
 --pos is (row, col) where row|col is in [0, maxrow|maxcol -1]
-type Pos = (Int, Int)
+type Pos = (Coord, Coord)
 
 type GroupId = Pos
 
@@ -31,7 +33,8 @@ type PegMap = Map.Map Pos Peg
 instance Show Peg where 
     show peg = "[" ++ show (pegPos peg) ++ show (pegColor peg) ++ "]"
 
-data Group = Group {grpColor :: Color, grpId :: GroupId} deriving (Show, Eq)
+data Group = Group {grpColor :: Color, grpId :: GroupId, 
+                    grpMinCoord :: Coord, grpMaxCoord :: Coord} deriving (Show, Eq)
 type GroupMap = Map.Map GroupId Group
 
 data Board = Board {bdSize :: Size, bdPegMap:: PegMap, bdToPlay :: Color, bdGroupMap :: GroupMap} deriving (Eq)
@@ -54,7 +57,7 @@ instance Show Board where
 --constructors and convenience functions
 -- ==============================
 
-mkBoard :: Int -> Int -> Board
+mkBoard :: Coord -> Coord -> Board
 mkBoard sizey sizex = Board {
                         bdSize = (sizey, sizex),
                         bdToPlay = White,
@@ -63,12 +66,18 @@ mkBoard sizey sizex = Board {
                         }
 
 mkGroup :: Peg -> Group
-mkGroup peg = Group{
-                    grpColor=pegColor peg,
-                    grpId=pegPos peg
-                    }
+mkGroup peg = 
+    let coord = if pegColor peg == White 
+                then getRow (pegPos peg) 
+                else getCol (pegPos peg)
+    in Group{
+        grpColor=pegColor peg,
+        grpId=pegPos peg,
+        grpMinCoord=coord,
+        grpMaxCoord=coord
+        }
 
-mkPeg :: Int -> Int -> Color -> Peg
+mkPeg :: Coord -> Coord -> Color -> Peg
 mkPeg posy posx color = Peg{pegPos=(posy, posx), pegColor=color}
 
 --abs + rel pos -> pos
@@ -79,19 +88,19 @@ oppColor :: Color -> Color
 oppColor White = Black
 oppColor Black = White
 
-getRow :: Pos -> Int
+getRow :: Pos -> Coord
 getRow (row, col) = row
 
-getCol :: Pos -> Int
+getCol :: Pos -> Coord
 getCol (row, col) = col
 
-pegOnRow :: Peg -> Int -> Bool
+pegOnRow :: Peg -> Coord -> Bool
 pegOnRow peg row = (getRow $ pegPos peg) == row
 
-pegOnCol :: Peg -> Int -> Bool
+pegOnCol :: Peg -> Coord -> Bool
 pegOnCol peg col = (getCol $ pegPos peg) == col
 
-mkPegs :: [(Int, Int, Color)] -> Pegs
+mkPegs :: [(Coord, Coord, Color)] -> Pegs
 mkPegs [] = []
 mkPegs ((posy, posx, color):rest) = (mkPeg posy posx color):(mkPegs rest)
 
@@ -213,7 +222,9 @@ mergeGroups :: [Group] -> Group -> Group
 mergeGroups [] group = group
 mergeGroups (g:gs) group = 
     let updatedGroup = Group {grpColor = grpColor group, 
-                              grpId = grpId group}
+                              grpId = grpId group, 
+                              grpMinCoord = min (grpMinCoord group) (grpMinCoord g),
+                              grpMaxCoord = max (grpMaxCoord group) (grpMaxCoord g)}
     in mergeGroups gs updatedGroup
 
 --checks whether all the pegs have same group number
@@ -284,21 +295,17 @@ placePegSeq initBoard seq = foldl placePeg initBoard seq
 --winner recognition functionality
 -- ==============================
 
-{-
-isWinningGroup :: Board -> Group -> Bool
-isWinningGroup board group | grpColor group == White 
-    = any (flip pegOnRow 0) (grpPegs group) && 
-      any (flip pegOnRow (getRow (bdSize board) - 1)) (grpPegs group) 
-isWinningGroup board group | grpColor group == Black 
-    = any (flip pegOnCol 0) (grpPegs group) && 
-      any (flip pegOnCol (getCol (bdSize board) - 1)) (grpPegs group) 
+isWinGroup :: Board -> Group -> Bool
+isWinGroup board group | grpColor group == White 
+    = grpMinCoord group == 0 && grpMaxCoord group == getRow (bdSize board) - 1
+isWinGroup board group | grpColor group == Black 
+    = grpMinCoord group == 0 && grpMaxCoord group == getCol (bdSize board) - 1
 
 getWinner :: Board -> Maybe Color
-getWinner board = let winningGroups = filter (isWinningGroup board) $ nub $ Map.elems $ bdGroupMap board
-                  in getWinnerFromGroups winningGroups
+getWinner board = let winGroups = filter (isWinGroup board) $ nub $ Map.elems $ bdGroupMap board
+                  in getWinnerFromGroups winGroups
 
 getWinnerFromGroups :: [Group] -> Maybe Color 
 getWinnerFromGroups [] = Nothing
 getWinnerFromGroups (group:[]) = Just $ grpColor group
 getWinnerFromGroups _ = error "More than one winning group"
--}
