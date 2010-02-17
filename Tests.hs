@@ -136,6 +136,22 @@ testBridges = TestList $ map mkTestBridge dataBridges
 -- peg placing 
 -- ==============================
 
+-- playable positions test
+-- ==============================
+
+testPlayablePos = 
+    let testBoard = (mkBoard 7 7) 
+    in TestCase $ do 
+    assertBool "testPlayablePos fail"
+        --playable positions are different because of the edges
+        (getPlayablePos testBoard White /= getPlayablePos testBoard Black && 
+        --it is not possible to play into corners
+        getPlayablePos testBoard White \\ getCorners testBoard == getPlayablePos testBoard White && 
+        --test elem is present
+        elem (1, 1) (getPlayablePos testBoard White) && 
+        --test elem is not present after peg is placed 
+        not (elem (1, 1) $ getPlayablePos (placePeg testBoard (mkPeg 1 1 Black)) White))
+    
 -- winning check
 -- ==============================
 
@@ -166,7 +182,7 @@ mkTestWinCheck (label, winner, pegSeq) =
         do 
         --putStrLn $ show testBoard
         --putStrLn $ show $ getWinner testBoard
-        assertBool ("testWintCheck " ++ label ++ " fail") $ Just winner == getWinner testBoard
+        assertBool ("testWinCheck " ++ label ++ " fail") $ Just winner == getWinner testBoard
 
 testWinCheck = TestList $ map mkTestWinCheck dataWinCheck
 
@@ -175,7 +191,7 @@ testWinCheck = TestList $ map mkTestWinCheck dataWinCheck
 -- ==============================
 
 boardTest = TestList [testPegConnect, testInvalidPeg, testGenSpoilPairs, 
-                      testBridges, testWinCheck]
+                      testBridges, testPlayablePos, testWinCheck]
 runTests = runTestTT boardTest
 run = runTests
 

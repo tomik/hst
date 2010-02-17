@@ -6,7 +6,7 @@ import Data.List
 import Utils (slice, mapFetch)
 
 -- ==============================
---declarations and instancing
+-- declarations and instancing
 -- ==============================
 
 --white connects top to bottom
@@ -54,7 +54,7 @@ instance Show Board where
                               ["Groups: " ++ show (Map.elems $ bdGroupMap board)]
     
 -- ==============================
---constructors and convenience functions
+-- constructors and convenience functions
 -- ==============================
 
 mkBoard :: Coord -> Coord -> Board
@@ -116,9 +116,33 @@ pegSameColor peg1 peg2 = pegColor peg1 == pegColor peg2
 getBoardPegs :: Board -> Pegs
 getBoardPegs board = Map.elems $ bdPegMap board
 
+-- ==============================
+-- playable positions
+-- ==============================
+
+getCorners :: Board -> [Pos] 
+getCorners board = 
+    [(0, 0), 
+     (getRow (bdSize board) - 1, 0), 
+     (getRow (bdSize board) - 1, getCol (bdSize board) - 1), 
+     (0, getCol (bdSize board) - 1)]
+
+getSpecialPlayablePos :: Board -> Color -> [Pos] 
+getSpecialPlayablePos board White = 
+    [(y, x) | y <- [0, 1..(getRow (bdSize board) - 1)], x <- [0, getCol (bdSize board) - 1]]
+getSpecialPlayablePos board Black = 
+    [(y, x) | x <- [0, 1..(getCol (bdSize board) - 1)], y <- [0, getRow (bdSize board) - 1]]
+
+getPlayablePos :: Board -> Color -> [Pos] 
+getPlayablePos board color = 
+    let all = (getSpecialPlayablePos board color) ++ 
+              [(y, x) | y <- [1, 2..(getRow (bdSize board) - 2)], 
+                        x <- [1, 2..(getCol (bdSize board) - 2)]]
+    in (all \\ (Map.keys $ bdPegMap board)) \\ (getCorners board)
+       --corners
 
 -- ==============================
---limitations
+-- limitations
 -- ==============================
 
 isGoalEdge:: Size -> Pos -> Color -> Bool
@@ -144,7 +168,7 @@ isLegalMove board peg = isOnBoard board peg
                         && Map.lookup (pegPos peg) (bdPegMap board) == Nothing 
 
 -- ==============================
---bridge spoiling
+-- bridge spoiling
 -- ==============================
 
 --transforming posPair in any position to posPair in referential position
@@ -200,7 +224,7 @@ genGoodNeighbors :: Board -> Peg -> Pegs -> Pegs
 genGoodNeighbors board newPeg neighbors = dropSpoilPegs newPeg neighbors (isBridge board)
 
 -- ==============================
---connecting pegs and merging groups
+-- connecting pegs and merging groups
 -- ==============================
 
 relJumps :: [Pos]
@@ -242,7 +266,7 @@ arePegsConnected :: Board -> Pegs -> Bool
 arePegsConnected board pegs = arePosConnected board $ map pegPos pegs 
 
 -- ==============================
---move placing and wrappers
+-- move placing and wrappers
 -- ==============================
 
 --TODO optimize 
@@ -292,7 +316,7 @@ placePegSeq initBoard [] = initBoard
 placePegSeq initBoard seq = foldl placePeg initBoard seq
 
 -- ==============================
---winner recognition functionality
+-- winner recognition functionality
 -- ==============================
 
 isWinGroup :: Board -> Group -> Bool
