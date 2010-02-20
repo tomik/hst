@@ -1,0 +1,4 @@
+scenario: 10 games on 11 x 11
+
+bare: 1.78 s 
+winner caching: 1.61

@@ -37,7 +37,12 @@ data Group = Group {grpColor :: Color, grpId :: GroupId,
                     grpMinCoord :: Coord, grpMaxCoord :: Coord} deriving (Show, Eq)
 type GroupMap = Map.Map GroupId Group
 
-data Board = Board {bdSize :: Size, bdPegMap:: PegMap, bdToPlay :: Color, bdGroupMap :: GroupMap} deriving (Eq)
+data Board = Board {bdSize :: Size, 
+                    bdPegMap:: PegMap, 
+                    bdToPlay :: Color, 
+                    bdGroupMap :: GroupMap, 
+                    bdWinner :: Maybe Color
+                    } deriving (Eq)
 
 showSquare :: Board -> Pos -> String
 showSquare board pos = let value = Map.lookup pos (bdPegMap board)
@@ -62,7 +67,8 @@ mkBoard sizey sizex = Board {
                         bdSize = (sizey, sizex),
                         bdToPlay = White,
                         bdPegMap = Map.empty,
-                        bdGroupMap = Map.empty
+                        bdGroupMap = Map.empty,
+                        bdWinner = Nothing
                         }
 
 mkGroup :: Peg -> Group
@@ -186,9 +192,9 @@ relSpoilPairs  = [((-2, 0), (0, 1)), ((-1, -1), (0, 1)), ((-1, 0), (1, 1)), ((1,
 --for a potential bridge (pair of positions) and processing function gives positions which can spoil it
 --processor handles transformations on relSpoilPairs arising from use of non-referential pair orientation
 doGenSpoilPairs :: (Pos -> Pos) -> (Pos, Pos) -> [(Pos, Pos)]
-doGenSpoilPairs processor (pos1@(pos1y, pos1x), pos2@(pos2y, pos2x))
-    = let processed = map (\(off1, off2) -> (processor off1, processor off2)) relSpoilPairs
-      in map (\(off1, off2) -> (offsetPos pos1 off1, offsetPos pos1 off2)) processed
+doGenSpoilPairs processor (pos1@(pos1y, pos1x), pos2@(pos2y, pos2x)) =
+    let processed = map (\(off1, off2) -> (processor off1, processor off2)) relSpoilPairs
+    in map (\(off1, off2) -> (offsetPos pos1 off1, offsetPos pos1 off2)) processed
 
 --wrapper around doGenSpoilPairs
 genSpoilPairs :: (Pos, Pos) -> [(Pos, Pos)]
@@ -240,7 +246,6 @@ filterConnectedPegs peg toFilter =
 
 getConnectedPegs :: Board -> Peg -> Pegs
 getConnectedPegs board peg = filterConnectedPegs peg $ getBoardPegs board
-
 
 mergeGroups :: [Group] -> Group -> Group
 mergeGroups [] group = group
@@ -297,7 +302,9 @@ placePeg board peg | otherwise =
      in Board {bdSize = bdSize board,
                bdPegMap = newPegMap,
                bdGroupMap = newGroupMap,
-               bdToPlay = oppColor $ bdToPlay board
+               bdToPlay = oppColor $ bdToPlay board,
+               --TODO ugly takes an old board and new group
+               bdWinner = getWinnerFromGroup (bdSize board) newGroup (bdWinner board)
               }
 
 --silently falls back to original board if move not legal
@@ -319,20 +326,19 @@ placePegSeq initBoard seq = foldl placePeg initBoard seq
 -- winner recognition functionality
 -- ==============================
 
-isWinGroup :: Board -> Group -> Bool
-isWinGroup board group | grpColor group == White 
-    = grpMinCoord group == 0 && grpMaxCoord group == getRow (bdSize board) - 1
-isWinGroup board group | grpColor group == Black 
-    = grpMinCoord group == 0 && grpMaxCoord group == getCol (bdSize board) - 1
+getWinnerFromGroup :: Size -> Group -> Maybe Color -> Maybe Color
+getWinnerFromGroup size group oldWinner | oldWinner /= Nothing = oldWinner
+getWinnerFromGroup size group oldWinner | isWinGroup size group = Just (grpColor group)
+getWinnerFromGroup size group oldWinner = Nothing
 
-getWinnerFromGroups :: [Group] -> Maybe Color 
-getWinnerFromGroups [] = Nothing
-getWinnerFromGroups (group:[]) = Just $ grpColor group
-getWinnerFromGroups _ = error "More than one winning group"
+isWinGroup :: Size -> Group -> Bool
+isWinGroup size group | grpColor group == White 
+    = grpMinCoord group == 0 && grpMaxCoord group == getRow size - 1
+isWinGroup size group | grpColor group == Black 
+    = grpMinCoord group == 0 && grpMaxCoord group == getCol size - 1
 
 getWinner :: Board -> Maybe Color
-getWinner board = let winGroups = filter (isWinGroup board) $ nub $ Map.elems $ bdGroupMap board
-                  in getWinnerFromGroups winGroups
+getWinner board = bdWinner board
 
 hasWinner :: Board -> Bool
 hasWinner board = getWinner board /= Nothing
