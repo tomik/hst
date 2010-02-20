@@ -129,16 +129,16 @@ getCorners board =
 
 getSpecialPlayablePos :: Board -> Color -> [Pos] 
 getSpecialPlayablePos board White = 
-    [(y, x) | y <- [0, 1..(getRow (bdSize board) - 1)], x <- [0, getCol (bdSize board) - 1]]
+    [(y, x) | y <- [0, 1..(getRow (bdSize board) - 1)], x <- [1.. getCol (bdSize board) - 2]]
 getSpecialPlayablePos board Black = 
-    [(y, x) | x <- [0, 1..(getCol (bdSize board) - 1)], y <- [0, getRow (bdSize board) - 1]]
+    [(y, x) | x <- [0, 1..(getCol (bdSize board) - 1)], y <- [1.. getRow (bdSize board) - 2]]
 
 getPlayablePos :: Board -> Color -> [Pos] 
 getPlayablePos board color = 
     let all = (getSpecialPlayablePos board color) ++ 
-              [(y, x) | y <- [1, 2..(getRow (bdSize board) - 2)], 
-                        x <- [1, 2..(getCol (bdSize board) - 2)]]
-    in (all \\ (Map.keys $ bdPegMap board)) \\ (getCorners board)
+              [(y, x) | y <- [1..(getRow (bdSize board) - 2)], 
+                        x <- [1..(getCol (bdSize board) - 2)]]
+    in (nub all \\ (Map.keys $ bdPegMap board)) \\ (getCorners board)
        --corners
 
 -- ==============================
@@ -297,7 +297,7 @@ placePeg board peg | otherwise =
      in Board {bdSize = bdSize board,
                bdPegMap = newPegMap,
                bdGroupMap = newGroupMap,
-               bdToPlay = bdToPlay board
+               bdToPlay = oppColor $ bdToPlay board
               }
 
 --silently falls back to original board if move not legal
@@ -325,11 +325,21 @@ isWinGroup board group | grpColor group == White
 isWinGroup board group | grpColor group == Black 
     = grpMinCoord group == 0 && grpMaxCoord group == getCol (bdSize board) - 1
 
-getWinner :: Board -> Maybe Color
-getWinner board = let winGroups = filter (isWinGroup board) $ nub $ Map.elems $ bdGroupMap board
-                  in getWinnerFromGroups winGroups
-
 getWinnerFromGroups :: [Group] -> Maybe Color 
 getWinnerFromGroups [] = Nothing
 getWinnerFromGroups (group:[]) = Just $ grpColor group
 getWinnerFromGroups _ = error "More than one winning group"
+
+getWinner :: Board -> Maybe Color
+getWinner board = let winGroups = filter (isWinGroup board) $ nub $ Map.elems $ bdGroupMap board
+                  in getWinnerFromGroups winGroups
+
+hasWinner :: Board -> Bool
+hasWinner board = getWinner board /= Nothing
+
+isDraw :: Board -> Bool
+isDraw board = 
+    let blackPlayable = getPlayablePos board Black 
+        whitePlayable = getPlayablePos board White 
+    in  blackPlayable == [] || whitePlayable == []
+
