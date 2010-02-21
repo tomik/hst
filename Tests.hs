@@ -146,7 +146,7 @@ testPlayablePos =
         --playable positions are different because of the edges
         (getPlayablePos testBoard White /= getPlayablePos testBoard Black && 
         --it is not possible to play into corners
-        getPlayablePos testBoard White \\ getCorners testBoard == getPlayablePos testBoard White && 
+        getPlayablePos testBoard White \\ getCorners (bdSize testBoard) == getPlayablePos testBoard White && 
         --test elem is present
         elem (1, 1) (getPlayablePos testBoard White) && 
         --test elem is not present after peg is placed 

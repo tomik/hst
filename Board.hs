@@ -1,6 +1,7 @@
 module Board where
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.List
 
 import Utils (slice, mapFetch)
@@ -30,6 +31,8 @@ data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Eq)
 type Pegs = [Peg]
 type PegMap = Map.Map Pos Peg
 
+type CanPlay = Set.Set Pos
+
 instance Show Peg where 
     show peg = "[" ++ show (pegPos peg) ++ show (pegColor peg) ++ "]"
 
@@ -41,8 +44,14 @@ data Board = Board {bdSize :: Size,
                     bdPegMap:: PegMap, 
                     bdToPlay :: Color, 
                     bdGroupMap :: GroupMap, 
-                    bdWinner :: Maybe Color
+                    bdWinner :: Maybe Color,
+                    bdCanWhite :: CanPlay, 
+                    bdCanBlack :: CanPlay
                     } deriving (Eq)
+
+bdCanPlay :: Board -> Color -> [Pos]
+bdCanPlay board White = Set.toList (bdCanWhite board)
+bdCanPlay board Black = Set.toList (bdCanBlack board)
 
 showSquare :: Board -> Pos -> String
 showSquare board pos = let value = Map.lookup pos (bdPegMap board)
@@ -63,12 +72,18 @@ instance Show Board where
 -- ==============================
 
 mkBoard :: Coord -> Coord -> Board
-mkBoard sizey sizex = Board {
-                        bdSize = (sizey, sizex),
+mkBoard sizey sizex = 
+    let size = (sizey, sizex) in 
+                    Board {
+                        bdSize = size,
                         bdToPlay = White,
                         bdPegMap = Map.empty,
                         bdGroupMap = Map.empty,
-                        bdWinner = Nothing
+                        bdWinner = Nothing,
+                        bdCanWhite = Set.fromList (getSpecialPos size White ++ 
+                                                   getCommonPos size),
+                        bdCanBlack = Set.fromList (getSpecialPos size Black ++ 
+                                                   getCommonPos size)
                         }
 
 mkGroup :: Peg -> Group
@@ -126,25 +141,30 @@ getBoardPegs board = Map.elems $ bdPegMap board
 -- playable positions
 -- ==============================
 
-getCorners :: Board -> [Pos] 
-getCorners board = 
+getCorners :: Size -> [Pos] 
+getCorners size = 
     [(0, 0), 
-     (getRow (bdSize board) - 1, 0), 
-     (getRow (bdSize board) - 1, getCol (bdSize board) - 1), 
-     (0, getCol (bdSize board) - 1)]
+     (getRow size - 1, 0), 
+     (getRow size - 1, getCol size - 1), 
+     (0, getCol size - 1)]
 
-getSpecialPlayablePos :: Board -> Color -> [Pos] 
-getSpecialPlayablePos board White = 
-    [(y, x) | y <- [0, 1..(getRow (bdSize board) - 1)], x <- [1.. getCol (bdSize board) - 2]]
-getSpecialPlayablePos board Black = 
-    [(y, x) | x <- [0, 1..(getCol (bdSize board) - 1)], y <- [1.. getRow (bdSize board) - 2]]
+getSpecialPos :: Size -> Color -> [Pos] 
+getSpecialPos size White = 
+    [(y, x) | y <- [0, 1..(getRow size - 1)], x <- [1.. getCol size - 2]]
+getSpecialPos size Black = 
+    [(y, x) | x <- [0, 1..(getCol size - 1)], y <- [1.. getRow size - 2]]
+
+getCommonPos :: Size -> [Pos]
+getCommonPos size = 
+              [(y, x) | y <- [1..(getRow size - 2)], 
+                        x <- [1..(getCol size - 2)]]
+              \\ (getCorners size)
 
 getPlayablePos :: Board -> Color -> [Pos] 
 getPlayablePos board color = 
-    let all = (getSpecialPlayablePos board color) ++ 
-              [(y, x) | y <- [1..(getRow (bdSize board) - 2)], 
-                        x <- [1..(getCol (bdSize board) - 2)]]
-    in (nub all \\ (Map.keys $ bdPegMap board)) \\ (getCorners board)
+    let all = (getSpecialPos (bdSize board) color) ++ 
+              (getCommonPos (bdSize board)) 
+    in (nub all \\ (Map.keys $ bdPegMap board)) 
        --corners
 
 -- ==============================
@@ -303,8 +323,9 @@ placePeg board peg | otherwise =
                bdPegMap = newPegMap,
                bdGroupMap = newGroupMap,
                bdToPlay = oppColor $ bdToPlay board,
-               --TODO ugly takes an old board and new group
-               bdWinner = getWinnerFromGroup (bdSize board) newGroup (bdWinner board)
+               bdWinner = getWinnerFromGroup (bdSize board) newGroup (bdWinner board),
+               bdCanWhite = Set.delete (pegPos peg) (bdCanWhite board),
+               bdCanBlack = Set.delete (pegPos peg) (bdCanBlack board)
               }
 
 --silently falls back to original board if move not legal
@@ -345,7 +366,9 @@ hasWinner board = getWinner board /= Nothing
 
 isDraw :: Board -> Bool
 isDraw board = 
-    let blackPlayable = getPlayablePos board Black 
-        whitePlayable = getPlayablePos board White 
+    --let blackPlayable = getPlayablePos board Black 
+    ----    whitePlayable = getPlayablePos board White 
+    let blackPlayable = bdCanPlay board Black 
+        whitePlayable = bdCanPlay board White 
     in  blackPlayable == [] || whitePlayable == []
 

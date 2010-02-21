@@ -4,7 +4,7 @@ import Random
 import Board
 import Playout
 
-main = let results = doPlayouts (mkBoard 11 11) (mkStdGen 10) 50 
+main = let results = doPlayouts (mkBoard 24 24) (mkStdGen 10) 10
        in do 
        putStrLn $ show results
         
