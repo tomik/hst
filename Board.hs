@@ -165,7 +165,6 @@ getPlayablePos board color =
     let all = (getSpecialPos (bdSize board) color) ++ 
               (getCommonPos (bdSize board)) 
     in (nub all \\ (Map.keys $ bdPegMap board)) 
-       --corners
 
 -- ==============================
 -- limitations
@@ -265,7 +264,11 @@ filterConnectedPegs peg toFilter =
     in filter (\apeg -> pegSameColor peg apeg && elem (pegPos apeg) connectedPos) toFilter
 
 getConnectedPegs :: Board -> Peg -> Pegs
-getConnectedPegs board peg = filterConnectedPegs peg $ getBoardPegs board
+getConnectedPegs board peg = 
+    let connectedPos = jumps (pegPos peg)
+    in filter (\apeg -> pegSameColor peg apeg) $ mapFetch connectedPos (bdPegMap board)
+
+--filterConnectedPegs peg $ getBoardPegs board
 
 mergeGroups :: [Group] -> Group -> Group
 mergeGroups [] group = group
