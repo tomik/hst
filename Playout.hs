@@ -4,6 +4,7 @@ module Playout where
 import Random
 import Debug.Trace
 import Control.Monad.State
+import Data.List
 
 import Board
 
@@ -17,17 +18,30 @@ pegToJsonStr peg = "{\"player\": " ++ (colorToJsonStr (pegColor peg)) ++ ", \"x\
                    (show $ getCol(pegPos peg) + 1) ++ ", \"y\":" ++ (show $ getRow(pegPos peg) + 1) ++
                    ", \"type\": 1}"
 
-simplePlayout :: (RandomGen gen) => Board -> gen -> (Maybe Color, gen)
-simplePlayout board gen | hasWinner board = (getWinner board, gen)
-simplePlayout board gen | isDraw board = (Nothing, gen)
-simplePlayout board gen | otherwise = 
-    --let playable = getPlayablePos board (bdToPlay board)
-    let playable = bdCanPlay board (bdToPlay board)
-        (index, newGen) = randomR (0, (length playable - 1)) gen 
-        pos = playable !! index
-        peg = mkPeg (getRow pos) (getCol pos) (bdToPlay board) 
-        newBoard = placePeg board peg
-    in 
+pegsToJsonStr :: Pegs -> String
+pegsToJsonStr pegs = "[" ++ (intercalate "," (map pegToJsonStr pegs))  ++ "]" 
+
+type Move = Peg
+type Moves = Pegs
+data Game = Game {gmWinner :: Maybe Color, gmMoves :: Moves} deriving (Show, Eq)
+
+mkGame winner moves = Game { gmWinner = winner, gmMoves = moves} 
+
+simplePlayout :: (RandomGen gen) => Board -> State gen Game 
+simplePlayout board | hasWinner board = return $ mkGame (getWinner board) []
+simplePlayout board | isDraw board = return $ mkGame Nothing []
+simplePlayout board | otherwise = 
+    do 
+        let playable = bdCanPlay board (bdToPlay board)
+        gen <- get
+        let (index, newGen) = randomR (0, (length playable - 1)) gen 
+        put newGen
+        let pos = playable !! index
+        let peg = mkPeg (getRow pos) (getCol pos) (bdToPlay board) 
+        let newBoard = placePeg board peg
+        game <- simplePlayout newBoard
+        return $ mkGame (gmWinner game) (peg:(gmMoves game))
+        
         {-
         trace ("===========")
         trace (show (bdPegMap board))
@@ -35,23 +49,11 @@ simplePlayout board gen | otherwise =
         trace (show peg)
         trace (show newBoard)
         -}
-        simplePlayout newBoard newGen
-
-pmSimple :: (RandomGen g) => Board -> State g (Maybe Color)
-pmSimple board = 
-    do 
-        gen <- get  
-        let (result, newGen) = simplePlayout board gen 
-        put newGen
-        return result 
-
---newtype Playout = (RandomGen g) => State g (Maybe Color)
 
 --runs given number of playouts and returns statistics
 doPlayouts :: (RandomGen gen) => Board -> gen -> Int -> [Maybe Color] -- (Int, Int)
 doPlayouts board gen n = 
     let 
-        results = evalState (sequence $ replicate n (pmSimple board))
-    in results gen
-
+        games = evalState (sequence $ replicate n (simplePlayout board)) gen
+    in map gmWinner games
 
