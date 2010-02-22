@@ -7,6 +7,16 @@ import Control.Monad.State
 
 import Board
 
+colorToJsonStr :: Color -> String
+colorToJsonStr White = "1"
+colorToJsonStr Black = "2"
+
+
+pegToJsonStr :: Peg -> String
+pegToJsonStr peg = "{\"player\": " ++ (colorToJsonStr (pegColor peg)) ++ ", \"x\":" ++ 
+                   (show $ getCol(pegPos peg) + 1) ++ ", \"y\":" ++ (show $ getRow(pegPos peg) + 1) ++
+                   ", \"type\": 1}"
+
 simplePlayout :: (RandomGen gen) => Board -> gen -> (Maybe Color, gen)
 simplePlayout board gen | hasWinner board = (getWinner board, gen)
 simplePlayout board gen | isDraw board = (Nothing, gen)
