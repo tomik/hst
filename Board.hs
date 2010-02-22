@@ -1,7 +1,6 @@
 module Board where
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Data.List
 
 import Utils (slice, mapFetch)
@@ -31,7 +30,7 @@ data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Eq)
 type Pegs = [Peg]
 type PegMap = Map.Map Pos Peg
 
-type CanPlay = Set.Set Pos
+type CanPlay = [Pos] 
 
 instance Show Peg where 
     show peg = "[" ++ show (pegPos peg) ++ show (pegColor peg) ++ "]"
@@ -50,8 +49,8 @@ data Board = Board {bdSize :: Size,
                     } deriving (Eq)
 
 bdCanPlay :: Board -> Color -> [Pos]
-bdCanPlay board White = Set.toList (bdCanWhite board)
-bdCanPlay board Black = Set.toList (bdCanBlack board)
+bdCanPlay board White = bdCanWhite board
+bdCanPlay board Black = bdCanBlack board
 
 showSquare :: Board -> Pos -> String
 showSquare board pos = let value = Map.lookup pos (bdPegMap board)
@@ -80,10 +79,8 @@ mkBoard sizey sizex =
                         bdPegMap = Map.empty,
                         bdGroupMap = Map.empty,
                         bdWinner = Nothing,
-                        bdCanWhite = Set.fromList (getSpecialPos size White ++ 
-                                                   getCommonPos size),
-                        bdCanBlack = Set.fromList (getSpecialPos size Black ++ 
-                                                   getCommonPos size)
+                        bdCanWhite = nub $ (getSpecialPos size White) ++ (getCommonPos size),
+                        bdCanBlack = nub $ (getSpecialPos size Black) ++ (getCommonPos size)
                         }
 
 mkGroup :: Peg -> Group
@@ -327,8 +324,8 @@ placePeg board peg | otherwise =
                bdGroupMap = newGroupMap,
                bdToPlay = oppColor $ bdToPlay board,
                bdWinner = getWinnerFromGroup (bdSize board) newGroup (bdWinner board),
-               bdCanWhite = Set.delete (pegPos peg) (bdCanWhite board),
-               bdCanBlack = Set.delete (pegPos peg) (bdCanBlack board)
+               bdCanWhite = delete (pegPos peg) (bdCanWhite board),
+               bdCanBlack = delete (pegPos peg) (bdCanBlack board)
               }
 
 --silently falls back to original board if move not legal
