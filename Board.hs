@@ -2,6 +2,7 @@ module Board where
 
 import qualified Data.Map as Map
 import Data.List
+import System.Random.Shuffle
 
 import Utils (slice, mapFetch)
 
@@ -32,9 +33,6 @@ type PegMap = Map.Map Pos Peg
 
 type CanPlay = [Pos] 
 
-instance Show Peg where 
-    show peg = "[" ++ show (pegPos peg) ++ show (pegColor peg) ++ "]"
-
 data Group = Group {grpColor :: Color, grpId :: GroupId, 
                     grpMinCoord :: Coord, grpMaxCoord :: Coord} deriving (Show, Eq)
 type GroupMap = Map.Map GroupId Group
@@ -52,19 +50,38 @@ bdCanPlay :: Board -> Color -> [Pos]
 bdCanPlay board White = bdCanWhite board
 bdCanPlay board Black = bdCanBlack board
 
+-- ==============================
+-- representation 
+-- ==============================
+
+colorToJsonStr :: Color -> String
+colorToJsonStr White = "1"
+colorToJsonStr Black = "2"
+
+pegToJsonStr :: Peg -> String
+pegToJsonStr peg = "{\"player\": " ++ (colorToJsonStr (pegColor peg)) ++ ", \"x\":" ++ 
+                   (show $ getCol(pegPos peg) + 1) ++ ", \"y\":" ++ (show $ getRow(pegPos peg) + 1) ++
+                   ", \"type\": 1}"
+
+pegsToJsonStr :: Pegs -> String
+pegsToJsonStr pegs = "[" ++ (intercalate "," (map pegToJsonStr pegs))  ++ "]" 
 showSquare :: Board -> Pos -> String
 showSquare board pos = let value = Map.lookup pos (bdPegMap board)
                        in case value of
                        Nothing -> " . "
                        Just peg -> " " ++ show (pegColor peg) ++ " "
 
+instance Show Peg where 
+    show peg = "[" ++ show (pegPos peg) ++ show (pegColor peg) ++ "]"
+
 instance Show Board where
-    show board = let (sizey, sizex) = bdSize board
-                     line = [ showSquare board (row, col) | row <- [0, 1..(sizey - 1)], col <- [0, 1..(sizex - 1)] ]
-                     header = "Board " ++ (show $ bdToPlay board) ++ " to play:"
-                 in unlines $ [header] ++
-                              (map concat $ slice sizex line) ++
-                              ["Groups: " ++ show (Map.elems $ bdGroupMap board)]
+    show board = 
+        let (sizey, sizex) = bdSize board
+            line = [ showSquare board (row, col) | row <- [0, 1..(sizey - 1)], col <- [0, 1..(sizex - 1)] ]
+            header = "Board " ++ (show $ bdToPlay board) ++ " to play:"
+        in unlines $ [header] ++
+                     (map concat $ slice sizex line) ++
+                     ["Groups: " ++ show (Map.elems $ bdGroupMap board)]
     
 -- ==============================
 -- constructors and convenience functions

@@ -8,19 +8,6 @@ import Data.List
 
 import Board
 
-colorToJsonStr :: Color -> String
-colorToJsonStr White = "1"
-colorToJsonStr Black = "2"
-
-
-pegToJsonStr :: Peg -> String
-pegToJsonStr peg = "{\"player\": " ++ (colorToJsonStr (pegColor peg)) ++ ", \"x\":" ++ 
-                   (show $ getCol(pegPos peg) + 1) ++ ", \"y\":" ++ (show $ getRow(pegPos peg) + 1) ++
-                   ", \"type\": 1}"
-
-pegsToJsonStr :: Pegs -> String
-pegsToJsonStr pegs = "[" ++ (intercalate "," (map pegToJsonStr pegs))  ++ "]" 
-
 type Move = Peg
 type Moves = Pegs
 data Game = Game {gmWinner :: Maybe Color, gmMoves :: Moves} deriving (Show, Eq)

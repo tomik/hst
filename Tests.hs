@@ -7,8 +7,7 @@ sequenceAssertions assertions = sequence assertions >> return ()
 
 -- ==============================
 -- Board testing
--- ==============================
-
+-- ============================== 
 refSizex = 6
 refSizey = 6
 refSize = (refSizey, refSizex)
