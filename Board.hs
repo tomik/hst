@@ -2,7 +2,6 @@ module Board where
 
 import qualified Data.Map as Map
 import Data.List
-import System.Random.Shuffle
 
 import Utils (slice, mapFetch)
 
@@ -31,8 +30,6 @@ data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Eq)
 type Pegs = [Peg]
 type PegMap = Map.Map Pos Peg
 
-type CanPlay = [Pos] 
-
 data Group = Group {grpColor :: Color, grpId :: GroupId, 
                     grpMinCoord :: Coord, grpMaxCoord :: Coord} deriving (Show, Eq)
 type GroupMap = Map.Map GroupId Group
@@ -41,14 +38,8 @@ data Board = Board {bdSize :: Size,
                     bdPegMap:: PegMap, 
                     bdToPlay :: Color, 
                     bdGroupMap :: GroupMap, 
-                    bdWinner :: Maybe Color,
-                    bdCanWhite :: CanPlay, 
-                    bdCanBlack :: CanPlay
+                    bdWinner :: Maybe Color
                     } deriving (Eq)
-
-bdCanPlay :: Board -> Color -> [Pos]
-bdCanPlay board White = bdCanWhite board
-bdCanPlay board Black = bdCanBlack board
 
 -- ==============================
 -- representation 
@@ -80,8 +71,8 @@ instance Show Board where
             line = [ showSquare board (row, col) | row <- [0, 1..(sizey - 1)], col <- [0, 1..(sizex - 1)] ]
             header = "Board " ++ (show $ bdToPlay board) ++ " to play:"
         in unlines $ [header] ++
-                     (map concat $ slice sizex line) ++
-                     ["Groups: " ++ show (Map.elems $ bdGroupMap board)]
+                     (map concat $ slice sizex line)
+                     -- ++ ["Groups: " ++ show (Map.elems $ bdGroupMap board)]
     
 -- ==============================
 -- constructors and convenience functions
@@ -95,9 +86,7 @@ mkBoard sizey sizex =
                         bdToPlay = White,
                         bdPegMap = Map.empty,
                         bdGroupMap = Map.empty,
-                        bdWinner = Nothing,
-                        bdCanWhite = nub $ (getSpecialPos size White) ++ (getCommonPos size),
-                        bdCanBlack = nub $ (getSpecialPos size Black) ++ (getCommonPos size)
+                        bdWinner = Nothing
                         }
 
 mkGroup :: Peg -> Group
@@ -174,6 +163,12 @@ getCommonPos size =
                         x <- [1..(getCol size - 2)]]
               \\ (getCorners size)
 
+getAllPlayablePos :: Board -> [Pos] 
+getAllPlayablePos board = 
+    let size = bdSize board in 
+    nub $ (getSpecialPos size White) ++ (getSpecialPos size Black)
+    ++ (getCommonPos size)
+
 getPlayablePos :: Board -> Color -> [Pos] 
 getPlayablePos board color = 
     let all = (getSpecialPos (bdSize board) color) ++ 
@@ -199,6 +194,9 @@ isOnBoard board peg = getRow (pegPos peg) < getRow (bdSize board)
                       && getRow (pegPos peg) >= 0
                       && getCol (pegPos peg) < getCol (bdSize board)
                       && getCol (pegPos peg) >= 0
+
+isEmptySquare :: Board -> Pos -> Bool 
+isEmptySquare board pos =  Map.lookup pos (bdPegMap board) == Nothing 
 
 --on the board, not on the opponents edge and on the empty square
 isLegalMove :: Board -> Peg -> Bool
@@ -340,9 +338,7 @@ placePeg board peg | otherwise =
                bdPegMap = newPegMap,
                bdGroupMap = newGroupMap,
                bdToPlay = oppColor $ bdToPlay board,
-               bdWinner = getWinnerFromGroup (bdSize board) newGroup (bdWinner board),
-               bdCanWhite = delete (pegPos peg) (bdCanWhite board),
-               bdCanBlack = delete (pegPos peg) (bdCanBlack board)
+               bdWinner = getWinnerFromGroup (bdSize board) newGroup (bdWinner board)
               }
 
 --silently falls back to original board if move not legal
@@ -383,9 +379,5 @@ hasWinner board = getWinner board /= Nothing
 
 isDraw :: Board -> Bool
 isDraw board = 
-    --let blackPlayable = getPlayablePos board Black 
-    ----    whitePlayable = getPlayablePos board White 
-    let blackPlayable = bdCanPlay board Black 
-        whitePlayable = bdCanPlay board White 
-    in  blackPlayable == [] || whitePlayable == []
-
+    let (y, x) =  bdSize board
+    in Map.size (bdPegMap board) == x * y - 4
