@@ -57,8 +57,8 @@ instance Heur HeurEmpty where
 
     --empty squares are randomly shuffled
     initHeur _ board gen = 
-        let playable = getAllPlayablePos board
-            (shuffled, newGen) = runState (shuffle playable) gen
+        let emptyPos = getAllEmptyPos board
+            (shuffled, newGen) = runState (shuffle emptyPos) gen
             heur = HeurEmpty{heEmpty=shuffled}
         in (heur, newGen)
             

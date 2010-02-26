@@ -151,26 +151,28 @@ getCorners size =
      (getRow size - 1, getCol size - 1), 
      (0, getCol size - 1)]
 
-getSpecialPos :: Size -> Color -> [Pos] 
-getSpecialPos size White = 
-    [(y, x) | y <- [0, 1..(getRow size - 1)], x <- [1.. getCol size - 2]]
-getSpecialPos size Black = 
-    [(y, x) | x <- [0, 1..(getCol size - 1)], y <- [1.. getRow size - 2]]
+getSpecificPos :: Size -> Color -> [Pos] 
+getSpecificPos size White = 
+    [(y, x) | y <- [0, (getRow size - 1)], x <- [1.. getCol size - 2]]
+getSpecificPos size Black = 
+    [(y, x) | x <- [0, (getCol size - 1)], y <- [1.. getRow size - 2]]
 
 getCommonPos :: Size -> [Pos]
 getCommonPos size = 
               [(y, x) | y <- [1..(getRow size - 2)], 
                         x <- [1..(getCol size - 2)]]
-              \\ (getCorners size)
 
-getAllPlayablePos :: Board -> [Pos] 
-getAllPlayablePos board = 
+getAllEmptyPos :: Board -> [Pos] 
+getAllEmptyPos board = 
     let size = bdSize board in 
-    nub $ (getSpecialPos size White) ++ (getSpecialPos size Black) ++ (getCommonPos size)
+    --all squares
+    [(y, x) | y <- [0..(getRow size - 1)], x <- [0..(getCol size - 1)]] 
+    --minus corners and full squares
+    \\ ((getCorners size) ++ (Map.keys $ bdPegMap board))
 
-getPlayablePos :: Board -> Color -> [Pos] 
-getPlayablePos board color = 
-    let all = (getSpecialPos (bdSize board) color) ++ 
+getEmptyPos :: Board -> Color -> [Pos] 
+getEmptyPos board color = 
+    let all = (getSpecificPos (bdSize board) color) ++ 
               (getCommonPos (bdSize board)) 
     in (nub all \\ (Map.keys $ bdPegMap board)) 
 

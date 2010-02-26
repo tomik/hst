@@ -143,13 +143,13 @@ testPlayablePos =
     in TestCase $ do 
     assertBool "testPlayablePos fail"
         --playable positions are different because of the edges
-        (getPlayablePos testBoard White /= getPlayablePos testBoard Black && 
+        (getEmptyPos testBoard White /= getEmptyPos testBoard Black && 
         --it is not possible to play into corners
-        getPlayablePos testBoard White \\ getCorners (bdSize testBoard) == getPlayablePos testBoard White && 
+        getEmptyPos testBoard White \\ getCorners (bdSize testBoard) == getEmptyPos testBoard White && 
         --test elem is present
-        elem (1, 1) (getPlayablePos testBoard White) && 
+        elem (1, 1) (getEmptyPos testBoard White) && 
         --test elem is not present after peg is placed 
-        not (elem (1, 1) $ getPlayablePos (placePeg testBoard (mkPeg 1 1 Black)) White))
+        not (elem (1, 1) $ getEmptyPos (placePeg testBoard (mkPeg 1 1 Black)) White))
     
 -- winning check
 -- ==============================
