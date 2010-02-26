@@ -166,8 +166,7 @@ getCommonPos size =
 getAllPlayablePos :: Board -> [Pos] 
 getAllPlayablePos board = 
     let size = bdSize board in 
-    nub $ (getSpecialPos size White) ++ (getSpecialPos size Black)
-    ++ (getCommonPos size)
+    nub $ (getSpecialPos size White) ++ (getSpecialPos size Black) ++ (getCommonPos size)
 
 getPlayablePos :: Board -> Color -> [Pos] 
 getPlayablePos board color = 
