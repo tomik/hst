@@ -7,25 +7,13 @@ import Control.Monad.State
 import Data.List
 
 import Board
+import Utils (shuffle)
 
 type Move = Peg
 type Moves = [Move]
 data Game = Game {gmWinner :: Maybe Color, gmMoves :: Moves} deriving (Show, Eq)
 
 mkGame winner moves = Game {gmWinner = winner, gmMoves = moves} 
-
-shuffle :: (RandomGen gen) => [a] -> State gen [a] 
-shuffle l = shuffleAcc l []
-
-shuffleAcc :: (RandomGen gen) => [a] -> [a] -> State gen [a]
-shuffleAcc [] acc = return acc
-shuffleAcc l acc = 
-    do 
-    gen <- get
-    let (index, newGen) = randomR (0, length l - 1) gen
-    put newGen
-    let (begin, pivot:end) = splitAt index l
-    shuffleAcc (begin ++ end) (pivot:acc)
 
 -- ==============================
 -- Heuristics
@@ -58,7 +46,8 @@ instance Heur HeurEmpty where
     --empty squares are randomly shuffled
     initHeur _ board gen = 
         let emptyPos = getAllEmptyPos board
-            (shuffled, newGen) = runState (shuffle emptyPos) gen
+            --(shuffled, newGen) = runState (shuffle emptyPos) gen
+            (shuffled, newGen) = shuffle emptyPos gen
             heur = HeurEmpty{heEmpty=shuffled}
         in (heur, newGen)
             
