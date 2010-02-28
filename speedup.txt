@@ -1,9 +1,0 @@
-scenario: 50 games on 11 x 11
-
-bare: 1.78 s 
-winner caching: 1.61
-playable caching: 0.32
-
-scenario change: 10 games on 24 x 24
-playable caching: 0.6
-getConnectedPegs speedup: 0.35
