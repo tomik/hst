@@ -30,8 +30,12 @@ data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Eq)
 type Pegs = [Peg]
 type PegMap = Map.Map Pos Peg
 
-data Group = Group {grpColor :: Color, grpId :: GroupId, 
-                    grpMinCoord :: Coord, grpMaxCoord :: Coord} deriving (Show, Eq)
+data Group = Group {grpColor :: Color, 
+                    grpId :: GroupId, 
+                    grpMinCoord :: Coord, 
+                    grpMaxCoord :: Coord, 
+                    grpPegs :: Pegs
+                    } deriving (Show, Eq)
 type GroupMap = Map.Map GroupId Group
 
 data Board = Board {bdSize :: Size, 
@@ -98,7 +102,8 @@ mkGroup peg =
         grpColor=pegColor peg,
         grpId=pegPos peg,
         grpMinCoord=coord,
-        grpMaxCoord=coord
+        grpMaxCoord=coord,
+        grpPegs = [peg]
         }
 
 mkPeg :: Coord -> Coord -> Color -> Peg
@@ -281,15 +286,15 @@ getConnectedPegs board peg =
     let connectedPos = jumps (pegPos peg)
     in filter (\apeg -> pegSameColor peg apeg) $ mapFetch connectedPos (bdPegMap board)
 
---filterConnectedPegs peg $ getBoardPegs board
-
+--looks inefficient but usually is used for little number of groups
 mergeGroups :: [Group] -> Group -> Group
-mergeGroups [] group = group
-mergeGroups (g:gs) group = 
-    let updatedGroup = Group {grpColor = grpColor group, 
-                              grpId = grpId group, 
-                              grpMinCoord = min (grpMinCoord group) (grpMinCoord g),
-                              grpMaxCoord = max (grpMaxCoord group) (grpMaxCoord g)}
+mergeGroups [] baseGroup = baseGroup
+mergeGroups (g:gs) baseGroup = 
+    let updatedGroup = Group {grpColor = grpColor baseGroup, 
+                              grpId = grpId baseGroup, 
+                              grpMinCoord = min (grpMinCoord baseGroup) (grpMinCoord g),
+                              grpMaxCoord = max (grpMaxCoord baseGroup) (grpMaxCoord g), 
+                              grpPegs = (grpPegs g) ++ (grpPegs baseGroup) }
     in mergeGroups gs updatedGroup
 
 --checks whether all the pegs have same group number
@@ -301,7 +306,7 @@ isBridge :: Board -> Pos -> Pos -> Bool
 isBridge board pos1 pos2 = 
     let group1 = Map.lookup pos1 (bdGroupMap board)
         group2 = Map.lookup pos2 (bdGroupMap board)
-    in group1 == group2 && group1 /= Nothing
+    in group1 /= Nothing && group1 == group2 
 
 arePegsConnected :: Board -> Pegs -> Bool
 arePegsConnected board pegs = arePosConnected board $ map pegPos pegs 
@@ -312,7 +317,7 @@ arePegsConnected board pegs = arePosConnected board $ map pegPos pegs
 
 --TODO optimize 
 getPosForGroup :: Board -> Group -> [Pos]
-getPosForGroup board group = Map.keys $ Map.filter ((==) group) (bdGroupMap board) 
+getPosForGroup board group = map pegPos (grpPegs group)
 
 -- expects legal move
 placePeg :: Board -> Peg -> Board
