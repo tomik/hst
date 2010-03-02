@@ -2,6 +2,7 @@ module Board where
 
 import qualified Data.Map as Map
 import Data.List
+import Random
 
 import Utils (slice, mapFetch)
 
@@ -144,6 +145,15 @@ pegSameColor peg1 peg2 = pegColor peg1 == pegColor peg2
 
 getBoardPegs :: Board -> Pegs
 getBoardPegs board = Map.elems $ bdPegMap board
+
+noPos :: Pos
+noPos = (0, 0)
+
+getRandomPos :: (RandomGen gen) => Board -> gen -> (Pos, gen)
+getRandomPos board gen = 
+    let (row, gen1) = randomR (1, getRow (bdSize board) - 1) gen
+        (col, gen2) = randomR (1, getCol (bdSize board) - 1) gen1
+    in  ((row, col), gen) 
 
 -- ==============================
 -- playable positions
