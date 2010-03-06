@@ -31,23 +31,25 @@ data Peg = Peg {pegPos :: Pos, pegColor :: Color} deriving (Eq)
 type Pegs = [Peg]
 type PegMap = Map.Map Pos Peg
 
-data Group = Group {grpColor :: Color, 
-                    grpId :: GroupId, 
-                    grpMinCoord :: Coord, 
-                    grpMaxCoord :: Coord, 
+data Group = Group {grpColor :: Color,
+                    grpId :: GroupId,
+                    grpMinCoord :: Coord,
+                    grpMaxCoord :: Coord,
                     grpPegs :: Pegs
                     } deriving (Show, Eq)
 type GroupMap = Map.Map GroupId Group
 
-data Board = Board {bdSize :: Size, 
-                    bdPegMap:: PegMap, 
-                    bdToPlay :: Color, 
-                    bdGroupMap :: GroupMap, 
-                    bdWinner :: Maybe Color
+data Board = Board {bdSize :: Size,
+                    bdPegMap:: PegMap,
+                    bdToPlay :: Color,
+                    bdGroupMap :: GroupMap,
+                    bdWinner :: Maybe Color,
+                    bdLastWhite :: Maybe Peg,
+                    bdLastBlack :: Maybe Peg
                     } deriving (Eq)
 
 -- ==============================
--- representation 
+-- representation
 -- ==============================
 
 colorToJsonStr :: Color -> String
@@ -55,49 +57,51 @@ colorToJsonStr White = "1"
 colorToJsonStr Black = "2"
 
 pegToJsonStr :: Peg -> String
-pegToJsonStr peg = "{\"player\": " ++ (colorToJsonStr (pegColor peg)) ++ ", \"x\":" ++ 
+pegToJsonStr peg = "{\"player\": " ++ (colorToJsonStr (pegColor peg)) ++ ", \"x\":" ++
                    (show $ getCol(pegPos peg) + 1) ++ ", \"y\":" ++ (show $ getRow(pegPos peg) + 1) ++
                    ", \"type\": 1}"
 
 pegsToJsonStr :: Pegs -> String
-pegsToJsonStr pegs = "[" ++ (intercalate "," (map pegToJsonStr pegs))  ++ "]" 
+pegsToJsonStr pegs = "[" ++ (intercalate "," (map pegToJsonStr pegs))  ++ "]"
 showSquare :: Board -> Pos -> String
 showSquare board pos = let value = Map.lookup pos (bdPegMap board)
                        in case value of
                        Nothing -> " . "
                        Just peg -> " " ++ show (pegColor peg) ++ " "
 
-instance Show Peg where 
+instance Show Peg where
     show peg = "[" ++ show (pegPos peg) ++ show (pegColor peg) ++ "]"
 
 instance Show Board where
-    show board = 
+    show board =
         let (sizey, sizex) = bdSize board
             line = [ showSquare board (row, col) | row <- [0, 1..(sizey - 1)], col <- [0, 1..(sizex - 1)] ]
             header = "Board " ++ (show $ bdToPlay board) ++ " to play:"
         in unlines $ [header] ++
                      (map concat $ slice sizex line)
                      -- ++ ["Groups: " ++ show (Map.elems $ bdGroupMap board)]
-    
+
 -- ==============================
 -- constructors and convenience functions
 -- ==============================
 
 mkBoard :: Coord -> Coord -> Board
-mkBoard sizey sizex = 
-    let size = (sizey, sizex) in 
+mkBoard sizey sizex =
+    let size = (sizey, sizex) in
                     Board {
                         bdSize = size,
                         bdToPlay = White,
                         bdPegMap = Map.empty,
                         bdGroupMap = Map.empty,
-                        bdWinner = Nothing
+                        bdWinner = Nothing,
+                        bdLastWhite = Nothing,
+                        bdLastBlack = Nothing
                         }
 
 mkGroup :: Peg -> Group
-mkGroup peg = 
-    let coord = if pegColor peg == White 
-                then getRow (pegPos peg) 
+mkGroup peg =
+    let coord = if pegColor peg == White
+                then getRow (pegPos peg)
                 else getCol (pegPos peg)
     in Group{
         grpColor=pegColor peg,
@@ -149,47 +153,54 @@ getBoardPegs board = Map.elems $ bdPegMap board
 noPos :: Pos
 noPos = (0, 0)
 
+noPeg :: Peg
+noPeg = mkPeg 0 0 White
+
 getRandomPos :: (RandomGen gen) => Board -> gen -> (Pos, gen)
-getRandomPos board gen = 
+getRandomPos board gen =
     let (row, gen1) = randomR (1, getRow (bdSize board) - 1) gen
         (col, gen2) = randomR (1, getCol (bdSize board) - 1) gen1
-    in  ((row, col), gen) 
+    in  ((row, col), gen)
+
+getLastByColor :: Board -> Color -> Maybe Peg
+getLastByColor board White = bdLastWhite board
+getLastByColor board Black = bdLastBlack board
 
 -- ==============================
 -- playable positions
 -- ==============================
 
-getCorners :: Size -> [Pos] 
-getCorners size = 
-    [(0, 0), 
-     (getRow size - 1, 0), 
-     (getRow size - 1, getCol size - 1), 
+getCorners :: Size -> [Pos]
+getCorners size =
+    [(0, 0),
+     (getRow size - 1, 0),
+     (getRow size - 1, getCol size - 1),
      (0, getCol size - 1)]
 
-getSpecificPos :: Size -> Color -> [Pos] 
-getSpecificPos size White = 
+getSpecificPos :: Size -> Color -> [Pos]
+getSpecificPos size White =
     [(y, x) | y <- [0, (getRow size - 1)], x <- [1.. getCol size - 2]]
-getSpecificPos size Black = 
+getSpecificPos size Black =
     [(y, x) | x <- [0, (getCol size - 1)], y <- [1.. getRow size - 2]]
 
 getCommonPos :: Size -> [Pos]
-getCommonPos size = 
-              [(y, x) | y <- [1..(getRow size - 2)], 
+getCommonPos size =
+              [(y, x) | y <- [1..(getRow size - 2)],
                         x <- [1..(getCol size - 2)]]
 
-getAllEmptyPos :: Board -> [Pos] 
-getAllEmptyPos board = 
-    let size = bdSize board in 
+getAllEmptyPos :: Board -> [Pos]
+getAllEmptyPos board =
+    let size = bdSize board in
     --all squares
-    [(y, x) | y <- [0..(getRow size - 1)], x <- [0..(getCol size - 1)]] 
+    [(y, x) | y <- [0..(getRow size - 1)], x <- [0..(getCol size - 1)]]
     --minus corners and full squares
     \\ ((getCorners size) ++ (Map.keys $ bdPegMap board))
 
-getEmptyPos :: Board -> Color -> [Pos] 
-getEmptyPos board color = 
-    let all = (getSpecificPos (bdSize board) color) ++ 
-              (getCommonPos (bdSize board)) 
-    in (nub all \\ (Map.keys $ bdPegMap board)) 
+getEmptyPos :: Board -> Color -> [Pos]
+getEmptyPos board color =
+    let all = (getSpecificPos (bdSize board) color) ++
+              (getCommonPos (bdSize board))
+    in (nub all \\ (Map.keys $ bdPegMap board))
 
 -- ==============================
 -- limitations
@@ -211,14 +222,14 @@ isOnBoard board peg = getRow (pegPos peg) < getRow (bdSize board)
                       && getCol (pegPos peg) < getCol (bdSize board)
                       && getCol (pegPos peg) >= 0
 
-isEmptySquare :: Board -> Pos -> Bool 
-isEmptySquare board pos =  Map.lookup pos (bdPegMap board) == Nothing 
+isEmptySquare :: Board -> Pos -> Bool
+isEmptySquare board pos =  Map.lookup pos (bdPegMap board) == Nothing
 
 --on the board, not on the opponents edge and on the empty square
 isLegalMove :: Board -> Peg -> Bool
 isLegalMove board peg = isOnBoard board peg
                         && not (isGoalEdge (bdSize board) (pegPos peg) (oppColor $ pegColor peg))
-                        && Map.lookup (pegPos peg) (bdPegMap board) == Nothing 
+                        && Map.lookup (pegPos peg) (bdPegMap board) == Nothing
 
 -- ==============================
 -- bridge spoiling
@@ -258,21 +269,21 @@ genSpoilPairs posPair@((pos1y, pos1x), (pos2y, pos2x))
     | pos2y - pos1y == 2 = doGenSpoilPairs rotateClockWise posPair
     | otherwise = error "No matching pos pair position"
 
---peg-level wrapper for genSpoilPairs 
+--peg-level wrapper for genSpoilPairs
 dropSpoilPegs :: Peg -> Pegs -> (Pos->Pos->Bool) -> Pegs
 --signature: newPeg -> neighbors -> check already connected (opponents) function -> updatedNeighbors
-dropSpoilPegs newPeg neighborPegs alreadyConnected = 
+dropSpoilPegs newPeg neighborPegs alreadyConnected =
     let neighborPegsPos = map pegPos neighborPegs
         newPegPos = pegPos newPeg
         posPairs = zip neighborPegsPos $ replicate (length neighborPegsPos) newPegPos
         --new peg + some neighbor -> bridges they would spoil if connected
         spoilPairs = map genSpoilPairs posPairs
         --now check which of these pairs are actually already connected
-        spoiled = map (any id . (map $ uncurry alreadyConnected)) spoilPairs 
+        spoiled = map (any id . (map $ uncurry alreadyConnected)) spoilPairs
     --keep only those neighbors which are not spoiled
     in map fst $ filter (not . snd) $ zip neighborPegs spoiled
 
---drops neighbors new peg cannot connect to 
+--drops neighbors new peg cannot connect to
 genGoodNeighbors :: Board -> Peg -> Pegs -> Pegs
 genGoodNeighbors board newPeg neighbors = dropSpoilPegs newPeg neighbors (isBridge board)
 
@@ -287,45 +298,45 @@ jumps :: Pos -> [Pos]
 jumps (posy, posx) = map (\(rely, relx) -> (posy + rely, posx + relx)) relJumps
 
 filterConnectedPegs :: Peg -> Pegs -> Pegs
-filterConnectedPegs peg toFilter =  
+filterConnectedPegs peg toFilter =
     let connectedPos = jumps (pegPos peg)
     in filter (\apeg -> pegSameColor peg apeg && elem (pegPos apeg) connectedPos) toFilter
 
 getConnectedPegs :: Board -> Peg -> Pegs
-getConnectedPegs board peg = 
+getConnectedPegs board peg =
     let connectedPos = jumps (pegPos peg)
     in filter (\apeg -> pegSameColor peg apeg) $ mapFetch connectedPos (bdPegMap board)
 
 --looks inefficient but usually is used for little number of groups
 mergeGroups :: [Group] -> Group -> Group
 mergeGroups [] baseGroup = baseGroup
-mergeGroups (g:gs) baseGroup = 
-    let updatedGroup = Group {grpColor = grpColor baseGroup, 
-                              grpId = grpId baseGroup, 
+mergeGroups (g:gs) baseGroup =
+    let updatedGroup = Group {grpColor = grpColor baseGroup,
+                              grpId = grpId baseGroup,
                               grpMinCoord = min (grpMinCoord baseGroup) (grpMinCoord g),
-                              grpMaxCoord = max (grpMaxCoord baseGroup) (grpMaxCoord g), 
+                              grpMaxCoord = max (grpMaxCoord baseGroup) (grpMaxCoord g),
                               grpPegs = (grpPegs g) ++ (grpPegs baseGroup) }
     in mergeGroups gs updatedGroup
 
 --checks whether all the pegs have same group number
 arePosConnected :: Board -> [Pos] -> Bool
-arePosConnected board positions = let nubbed = nub $ mapFetch positions (bdGroupMap board) 
-                                  in length nubbed <= 1 
+arePosConnected board positions = let nubbed = nub $ mapFetch positions (bdGroupMap board)
+                                  in length nubbed <= 1
 
 isBridge :: Board -> Pos -> Pos -> Bool
-isBridge board pos1 pos2 = 
+isBridge board pos1 pos2 =
     let group1 = Map.lookup pos1 (bdGroupMap board)
         group2 = Map.lookup pos2 (bdGroupMap board)
-    in group1 /= Nothing && group1 == group2 
+    in group1 /= Nothing && group1 == group2
 
 arePegsConnected :: Board -> Pegs -> Bool
-arePegsConnected board pegs = arePosConnected board $ map pegPos pegs 
+arePegsConnected board pegs = arePosConnected board $ map pegPos pegs
 
 -- ==============================
 -- move placing and wrappers
 -- ==============================
 
---TODO optimize 
+--TODO optimize
 getPosForGroup :: Board -> Group -> [Pos]
 getPosForGroup board group = map pegPos (grpPegs group)
 
@@ -336,9 +347,9 @@ placePeg board peg | otherwise =
     let -- pegMapcontaining new peg
         newPegMap = Map.insert (pegPos peg) peg (bdPegMap board)
         -- update groupMap with newgroups id
-        neighbors = getConnectedPegs board peg 
+        neighbors = getConnectedPegs board peg
         -- consider only those we can connectTo
-        goodNeighbors = genGoodNeighbors board peg neighbors 
+        goodNeighbors = genGoodNeighbors board peg neighbors
         -- connect all the neighboring groups
         groupsToUpdate = nub $ mapFetch (map pegPos goodNeighbors) (bdGroupMap board)
         -- collect all the positions that must be updated
@@ -346,7 +357,7 @@ placePeg board peg | otherwise =
         -- merge groups in groupMap
         newGroup = mergeGroups groupsToUpdate $ mkGroup peg
         -- find neighboring pegs
-        newGroupMap = foldl (\groupMap pos -> Map.insert pos newGroup groupMap) 
+        newGroupMap = foldl (\groupMap pos -> Map.insert pos newGroup groupMap)
                       (bdGroupMap board) $ posToUpdate ++ [pegPos peg]
 
      -- create the board
@@ -354,7 +365,9 @@ placePeg board peg | otherwise =
                bdPegMap = newPegMap,
                bdGroupMap = newGroupMap,
                bdToPlay = oppColor $ bdToPlay board,
-               bdWinner = getWinnerFromGroup (bdSize board) newGroup (bdWinner board)
+               bdWinner = getWinnerFromGroup (bdSize board) newGroup (bdWinner board),
+               bdLastWhite = if pegColor peg == White then Just peg else bdLastWhite board,
+               bdLastBlack = if pegColor peg == Black then Just peg else bdLastBlack board
               }
 
 --silently falls back to original board if move not legal
@@ -382,9 +395,9 @@ getWinnerFromGroup size group oldWinner | isWinGroup size group = Just (grpColor
 getWinnerFromGroup size group oldWinner = Nothing
 
 isWinGroup :: Size -> Group -> Bool
-isWinGroup size group | grpColor group == White 
+isWinGroup size group | grpColor group == White
     = grpMinCoord group == 0 && grpMaxCoord group == getRow size - 1
-isWinGroup size group | grpColor group == Black 
+isWinGroup size group | grpColor group == Black
     = grpMinCoord group == 0 && grpMaxCoord group == getCol size - 1
 
 getWinner :: Board -> Maybe Color
@@ -394,6 +407,6 @@ hasWinner :: Board -> Bool
 hasWinner board = getWinner board /= Nothing
 
 isDraw :: Board -> Bool
-isDraw board = 
+isDraw board =
     let (y, x) =  bdSize board
     in Map.size (bdPegMap board) == x * y - 4

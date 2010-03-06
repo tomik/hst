@@ -24,7 +24,6 @@ mkGame winner moves = Game {gmWinner = winner, gmMoves = moves}
 --TODO
 --data GameState = forall gen . (RandomGen gen) => GameState {gsGen :: gen, gsEmpty :: [Pos]}
 data GameState = GameState {gsGen :: StdGen, gsEmpty :: [Pos]}
---type Heur = Board -> HeurState -> gen -> (HeurState, gen)
 type HeurFunc = Board -> State GameState Pos
 data Heur = Heur HeurFunc Float
 
@@ -57,22 +56,33 @@ heurEmpty board =
         put $ gameState {gsEmpty=(oppCanPlay ++ rest)}
         if length(rest) == 0 then return noPos else return $ rest !! 0
 
+getJumpFromLastPeg :: Maybe Peg -> Board -> StdGen -> (Pos, StdGen)
+getJumpFromLastPeg Nothing board gen = (noPos, gen)
+getJumpFromLastPeg (Just peg) board gen =
+
+    let connected = filter (isLegalMove board) $ 
+                    map (\pos -> mkPeg (getCol pos) (getRow pos) (pegColor peg)) $ 
+                    jumps (pegPos peg)
+    in
+        if length connected == 0 then
+            --trace (show board ++ (show $ getConnectedPegs board peg) ++ show peg)
+            (noPos, gen)
+        else
+            let (index, newGen) = randomR (0, length connected - 1) gen
+                neighbor = connected !! index
+            in (pegPos neighbor, newGen)
+    
 heurJump :: HeurFunc
 heurJump board =
     do
-        --select random pos and play it, if it is legal keima
+        --try to jump from peg
         gameState <- get
-        let (pos, newGen) = getRandomPos board (gsGen gameState)
-        let peg = mkPeg (getRow pos) (getCol pos) (bdToPlay board)
+        let (pos, newGen) = getJumpFromLastPeg (getLastByColor board $ bdToPlay board) board $ gsGen gameState 
         put gameState {gsGen=newGen}
-        if (isLegalMove board peg) &&
-            (not . null $ getConnectedPegs board peg) then
-                return $ pegPos peg
-            else
-                return noPos
+        return $ pos
 
 mkHeurs :: [Heur]
-mkHeurs = [Heur heurJump 0.7, Heur heurEmpty 1.0]
+mkHeurs = [Heur heurJump 1.0, Heur heurEmpty 1.0]
 
 -- ==============================
 -- Generic playouts and simplePlayout
